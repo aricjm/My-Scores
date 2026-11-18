@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101311">
+    <meta name="description" content="A simple, dark-mode sports scoreboard.">
+    <title>Aric's Sideline</title>
+    <link rel="preconnect" href="https://site.api.espn.com">
+    <link rel="preconnect" href="https://site.web.api.espn.com">
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <main>
+        <p class="visually-hidden" id="date-label">YOUR DAILY SCOREBOARD</p>
+        <div class="scoreboard-toolbar">
+          <div class="section-title-group">
+            <p class="eyebrow" id="section-kicker">Aric Myers</p>
+            <h2 id="section-title">My Teams</h2>
+          </div>
+          <div class="date-controls">
+            <div class="date-switch" role="group" aria-label="Choose game time range">
+              <button type="button" data-day="yesterday">Past</button>
+              <button type="button" data-day="today" class="selected" aria-pressed="true">Today &amp; Future</button>
+            </div>
+            <div class="today-view-switch" id="today-view-switch" role="group" aria-label="Filter games by TV coverage">
+              <button type="button" class="selected" data-today-view="all" aria-pressed="true">All</button>
+              <button type="button" data-today-view="tv" aria-pressed="false">TV</button>
+            </div>
+            <button class="icon-button refresh-button" id="refresh-button" type="button" aria-label="Refresh scores">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"></path><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <nav class="tabs" aria-label="Sports">
+          <button type="button" class="tab" data-tab="All">All</button>
+          <button type="button" class="tab active" data-tab="My Teams" aria-current="page">My Teams</button>
+          <button type="button" class="tab" data-tab="NCAAF">NCAAF</button>
+          <button type="button" class="tab" data-tab="NFL">NFL</button>
+          <button type="button" class="tab" data-tab="NCAAM">NCAAM</button>
+          <button type="button" class="tab" data-tab="NCAAW">NCAAW</button>
+          <button type="button" class="tab" data-tab="NBA">NBA</button>
+          <button type="button" class="tab" data-tab="WNBA">WNBA</button>
+          <button type="button" class="tab" data-tab="Golf">Golf</button>
+        </nav>
+
+        <div class="my-team-filters" id="my-team-filters" role="group" aria-label="Filter My Teams by league" hidden>
+          <span class="filter-label">MY LEAGUES</span>
+          <button type="button" class="league-filter active" data-league-filter="All" aria-pressed="true">All</button>
+          <button type="button" class="league-filter" data-league-filter="NCAAF" aria-pressed="false">NCAAF</button>
+          <button type="button" class="league-filter" data-league-filter="NFL" aria-pressed="false">NFL</button>
+          <button type="button" class="league-filter" data-league-filter="NCAAM" aria-pressed="false">NCAAM</button>
+          <button type="button" class="league-filter" data-league-filter="NCAAW" aria-pressed="false">NCAAW</button>
+          <button type="button" class="league-filter" data-league-filter="WNBA" aria-pressed="false">WNBA</button>
+          <button type="button" class="league-filter" data-league-filter="NBA" aria-pressed="false">NBA</button>
+        </div>
+
+        <div class="my-team-filters golf-tour-filters" id="golf-tour-filters" role="group" aria-label="Choose golf tour" hidden>
+          <span class="filter-label">TOUR</span>
+          <button type="button" class="golf-tour-filter active" data-golf-tour="pga" aria-pressed="true">PGA Tour</button>
+          <button type="button" class="golf-tour-filter" data-golf-tour="champions" aria-pressed="false">PGA Tour Champions</button>
+          <button type="button" class="golf-tour-filter" data-golf-tour="liv" aria-pressed="false">LIV Golf</button>
+          <button type="button" class="golf-tour-filter" data-golf-tour="dp-world" aria-pressed="false">DP World Tour</button>
+          <button type="button" class="golf-tour-filter" data-golf-tour="lpga" aria-pressed="false">LPGA Tour</button>
+        </div>
+
+        <section class="scoreboard" aria-live="polite">
+          <div class="section-heading">
+            <span class="game-count" id="game-count"></span>
+          </div>
+          <div id="score-list" class="score-list">
+            <div class="loading-state"><span class="loader"></span><span>Checking the scoreboard…</span></div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>Scores and game information via ESPN</span>
+        <span>Times shown in Central Time</span>
+      </footer>
+    </div>
+
+    <div class="pull-indicator" id="pull-indicator" aria-hidden="true">
+      <span class="loader"></span>
+      <span>Refreshing scores</span>
+    </div>
+  </body>
+</html>
