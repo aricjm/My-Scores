@@ -328,6 +328,24 @@ h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
 .my-picks-table input[data-pick-field$="-line"].is-dragging-line { border-color: var(--green); color: var(--green); }
 .my-picks-table select:focus, .my-picks-table input:focus { border-color: #78965f; }
 .my-picks-table .pick-progress-cell { white-space: normal; }
+.pick-player-heading, .pick-row-actions, .locked-player-pick-heading, .locked-player-pick-actions { display: flex; align-items: center; }
+.pick-player-heading { justify-content: space-between; gap: 5px; }
+.pick-row-actions, .locked-player-pick-actions { flex: none; gap: 5px; }
+.pick-lock { display: inline-flex; width: 23px; height: 23px; align-items: center; justify-content: center; padding: 3px; border: 1px solid #343d36; border-radius: 5px; background: #111512; color: #aeb8af; cursor: pointer; }
+.pick-lock:hover, .pick-lock.is-locked { border-color: #63814f; color: var(--green); }
+.pick-lock svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.locked-player-picks { display: grid; gap: 8px; margin-bottom: 9px; }
+.locked-player-pick { min-width: 0; padding: 9px 10px; border: 1px solid rgba(182,243,106,.22); border-radius: 8px; background: rgba(182,243,106,.045); }
+.locked-player-pick-heading { justify-content: space-between; gap: 8px; color: #e5e9e5; font-size: 10px; }
+.locked-player-pick-heading > strong { min-width: 0; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.locked-player-pick-actions .pick-remove { margin: 0; }
+.locked-player-pick-market { margin: 5px 0 7px; color: #c0c8c1; font-size: 10px; font-weight: 600; }
+.locked-player-pick-progress { min-width: 0; }
+.locked-player-pick-progress .game-pick-progress-stack { gap: 7px; }
+.locked-player-pick-progress .pick-progress-note { min-height: 0; }
+.locked-player-pick-progress .pick-progress { margin-top: 5px; }
+.game-pick-progress-stack { display: grid; min-width: 0; gap: 6px; }
+.game-pick-progress-stack .game-elapsed { margin-top: 0; }
 .golf-my-picks-table { min-width: 930px; }
 .golf-my-picks-table thead th:first-child { padding-left: 0; text-align: left; }
 .golf-pick-round-opponent { display: flex; flex-direction: column; gap: 4px; }
@@ -449,7 +467,7 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
   .date-switch { flex: 1; }
   .date-switch button { flex: 1; padding: 7px 8px; font-size: 10px; }
   .today-view-switch button { padding: 7px 8px; font-size: 10px; }
-  .refresh-button { width: 32px; height: 32px; padding: 7px; }
+  .refresh-button { display: none; }
   .tabs { gap: 3px; margin-right: -16px; margin-left: -4px; padding-right: 16px; }
   .tab { padding: 9px 12px; font-size: 11px; }
   .my-team-filters { margin-top: 11px; }

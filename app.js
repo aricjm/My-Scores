@@ -136,6 +136,7 @@ const elements = {
   dateLabel: document.querySelector("#date-label"),
   refreshButton: document.querySelector("#refresh-button"),
   pullIndicator: document.querySelector("#pull-indicator"),
+  pullIndicatorLabel: document.querySelector("#pull-indicator-label"),
   myTeamFilters: document.querySelector("#my-team-filters"),
   golfTourFilters: document.querySelector("#golf-tour-filters"),
   todayViewSwitch: document.querySelector("#today-view-switch"),
@@ -1028,25 +1029,61 @@ function renderGolfPickRow(event, pick) {
     ? `<input type="number" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-golf-pick-field="line" data-player-id="${cleanText(pick.id)}" aria-label="Round score line for ${cleanText(pick.name)}">`
     : "—";
   return `<tr>
-    <th scope="row"><button type="button" class="pick-remove" data-golf-pick-action="remove-player" data-player-id="${cleanText(pick.id)}" aria-label="Remove ${cleanText(pick.name)} from My Picks">×</button>${cleanText(pick.name)}</th>
+    <th scope="row"><span class="pick-player-heading">${cleanText(pick.name)}<span class="pick-row-actions">${renderPickLockButton(pick, false, true)}<button type="button" class="pick-remove" data-golf-pick-action="remove-player" data-player-id="${cleanText(pick.id)}" aria-label="Remove ${cleanText(pick.name)} from My Picks">×</button></span></span></th>
     <td><select data-golf-pick-field="market" data-player-id="${cleanText(pick.id)}" aria-label="Bet type for ${cleanText(pick.name)}">${options}</select></td>
     <td>${controls}</td><td>${side}</td><td>${line}</td><td>${cleanText(now)}</td>
     <td class="pick-progress-cell">${renderGolfPickProgress(event, pick, competitor, opponent)}</td>
   </tr>`;
 }
 
+function getGolfPickSummary(event, pick) {
+  const label = GOLF_PLAYER_BET_OPTIONS.find(([value]) => value === pick.market)?.[1] ?? pick.market;
+  if (pick.market === "round-score") {
+    const side = pick.direction === "under" ? "Under" : "Over";
+    return `R${Number(pick.round) || 1} ${side} ${formatGolfScore(pick.line)} score`;
+  }
+  if (pick.market === "round-matchup") {
+    const opponent = getGolfCompetitor(event, pick.opponentId);
+    const opponentName = opponent?.athlete?.displayName || opponent?.athlete?.fullName || "opponent";
+    return `R${Number(pick.round) || 1} vs ${opponentName}`;
+  }
+  return label;
+}
+
+function renderLockedGolfPick(event, pick) {
+  const competitor = getGolfCompetitor(event, pick.id);
+  if (!competitor) return "";
+  const opponent = getGolfCompetitor(event, pick.opponentId);
+  return `<article class="locked-player-pick">
+    <div class="locked-player-pick-heading">
+      <strong>${cleanText(pick.name)}</strong>
+      <span class="locked-player-pick-actions">
+        ${renderPickLockButton(pick, true, true)}
+        <button type="button" class="pick-remove" data-golf-pick-action="remove-player" data-player-id="${cleanText(pick.id)}" aria-label="Remove ${cleanText(pick.name)} from My Picks">×</button>
+      </span>
+    </div>
+    <div class="locked-player-pick-market">${cleanText(getGolfPickSummary(event, pick))}</div>
+    <div class="locked-player-pick-progress">${renderGolfPickProgress(event, pick, competitor, opponent)}</div>
+  </article>`;
+}
+
 function renderGolfMyPicks(event, tourKey) {
   const picks = getGolfPicks(tourKey, event.id);
-  const rows = picks.players.map((pick) => renderGolfPickRow(event, pick)).join("");
+  const lockedPicks = picks.players.filter((pick) => pick.locked);
+  const unlockedPicks = picks.players.filter((pick) => !pick.locked);
+  const rows = unlockedPicks.map((pick) => renderGolfPickRow(event, pick)).join("");
   const table = rows ? `<div class="my-picks-table-wrap"><table class="my-picks-table golf-my-picks-table">
     <thead><tr><th scope="col">PLAYER</th><th scope="col">BET</th><th scope="col">ROUND / OPPONENT</th><th scope="col">SIDE</th><th scope="col">LINE</th><th scope="col">NOW</th><th scope="col">PROGRESS</th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>` : "";
+  const lockedCards = lockedPicks.length
+    ? `<div class="locked-player-picks">${lockedPicks.map((pick) => renderLockedGolfPick(event, pick)).join("")}</div>`
+    : "";
   const error = state.pickStorageError ? `<p class="my-picks-error">${cleanText(state.pickStorageError)}</p>` : "";
   const refreshError = `<p class="my-picks-error" data-golf-pick-refresh-error hidden></p>`;
   return `<section class="my-picks golf-my-picks" data-golf-my-picks${picks.players.length ? "" : " hidden"}>
     <div class="my-picks-heading"><h3>My Picks</h3></div>
-    <div class="my-picks-content">${table}${error}${refreshError}</div>
+    <div class="my-picks-content">${lockedCards}${table}${error}${refreshError}</div>
   </section>`;
 }
 
@@ -1303,7 +1340,14 @@ function handleGolfPickAction(event) {
       line: "",
       opponentId: opponent ? String(opponent.id ?? opponent.athlete?.id ?? "") : "",
     });
-  } else if (button.dataset.golfPickAction === "toggle-player" || button.dataset.golfPickAction === "remove-player") {
+  } else if (button.dataset.golfPickAction === "toggle-lock-player") {
+    if (existingIndex < 0) return;
+    picks.players[existingIndex].locked = !picks.players[existingIndex].locked;
+  } else if (button.dataset.golfPickAction === "remove-player") {
+    const pick = picks.players[existingIndex];
+    if (pick?.locked && !window.confirm(`Are you sure you want to delete ${pick.name} from My Picks?`)) return;
+    if (existingIndex >= 0) picks.players.splice(existingIndex, 1);
+  } else if (button.dataset.golfPickAction === "toggle-player") {
     if (existingIndex >= 0) picks.players.splice(existingIndex, 1);
   } else {
     return;
@@ -1675,7 +1719,7 @@ function tabsForSelection(tab) {
 
 function updateDateSwitchLabels() {
   const labels = state.tab === "My Teams"
-    ? ["Past", "Today & Future"]
+    ? ["Past", "Today+"]
     : state.tab === "NFL" || state.tab === "Golf"
       ? ["Last Week", "This Week"]
       : ["Yesterday", "Today"];
@@ -2173,6 +2217,84 @@ function renderPickProgress({ current, line, direction = "over", isFinal = false
   return `<span class="pick-progress-note">${status}</span><span class="pick-progress"><span class="pick-progress-fill${isFinal && !met && !tied || !isFinal && missed ? " is-missed" : ""}" style="width:${percentage}%"></span></span>`;
 }
 
+function isBasketballPickCard(card) {
+  return ["NBA", "NCAAM", "NCAAW", "WNBA"].includes(card.dataset.sport);
+}
+
+function isFootballPickCard(card) {
+  return ["NFL", "NCAAF"].includes(card.dataset.sport);
+}
+
+function supportsPlayerPickLock(card) {
+  return isBasketballPickCard(card) || isFootballPickCard(card);
+}
+
+function renderGamePickProgress(card, progress) {
+  return supportsPlayerPickLock(card)
+    ? `<div class="game-pick-progress-stack">${progress}${renderGameElapsedProgress(card)}</div>`
+    : progress;
+}
+
+function renderPickLockButton(pick, locked, golf = false) {
+  const action = locked ? "Unlock" : "Lock";
+  const actionAttribute = golf ? "data-golf-pick-action" : "data-pick-action";
+  return `<button type="button" class="pick-lock${locked ? " is-locked" : ""}" ${actionAttribute}="toggle-lock-player" data-player-id="${cleanText(pick.id)}" aria-label="${action} ${cleanText(pick.name)}" title="${action} pick">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="${locked ? "M8 10V7a4 4 0 0 1 8 0v3" : "M8 10V7a4 4 0 0 1 7.5-1.8"}"></path></svg>
+  </button>`;
+}
+
+function renderBasketballPickSummary(pick) {
+  const labels = {
+    PTS: "Pts", "3PT": "3PT", REB: "Reb", AST: "Ast", PR: "Pts + Reb",
+    PA: "Pts + Ast", RA: "Reb + Ast", PRA: "Pts + Reb + Ast", SB: "Steals + Blocks",
+    BLK: "Blocks", STL: "Steals", DD: "Double-Double", TD: "Triple-Double",
+  };
+  if (pick.market === "DD" || pick.market === "TD") return labels[pick.market];
+  const side = pick.direction === "under" ? "Under" : "Over";
+  const line = pick.line === "" || pick.line == null ? "—" : formatPickNumber(Number(pick.line));
+  return `${side} ${line} ${labels[pick.market] ?? pick.market}`;
+}
+
+function getGamePlayerPickSummary(pick) {
+  const options = getPlayerPropOptions(pick);
+  const marketLabel = options.find(([value]) => value === pick.market)?.[1] ?? pick.market;
+  if (isFootballBinaryProp(pick.market)) return `${marketLabel}`;
+  const side = pick.direction === "under" ? "Under" : "Over";
+  const line = pick.line === "" || pick.line == null ? "—" : formatPickNumber(Number(pick.line));
+  return `${side} ${line} ${marketLabel}`;
+}
+
+function renderLockedGamePlayerPick(card, pick, summary) {
+  const current = getPlayerCurrentValue(summary, pick);
+  const binary = isFootballBinaryProp(pick.market);
+  const milestone = pick.market === "DD" ? 2 : pick.market === "TD" ? 3 : 0;
+  const milestoneName = pick.market === "DD" ? "Double-double" : "Triple-double";
+  const progress = renderPickProgress({
+    current,
+    line: pick.line,
+    direction: pick.direction,
+    isFinal: card.dataset.completed === "true",
+    upcoming: card.dataset.upcoming === "true",
+    milestone,
+    milestoneName,
+    binary,
+  });
+  const playerSummary = isBasketballPickCard(card)
+    ? renderBasketballPickSummary(pick)
+    : getGamePlayerPickSummary(pick);
+  return `<article class="locked-player-pick">
+    <div class="locked-player-pick-heading">
+      <strong>${cleanText(pick.name)}</strong>
+      <span class="locked-player-pick-actions">
+        ${renderPickLockButton(pick, true)}
+        <button type="button" class="pick-remove" data-pick-action="remove-player" data-player-id="${cleanText(pick.id)}" aria-label="Remove ${cleanText(pick.name)} from My Picks">×</button>
+      </span>
+    </div>
+    <div class="locked-player-pick-market">${cleanText(playerSummary)}</div>
+    <div class="locked-player-pick-progress">${renderGamePickProgress(card, progress)}</div>
+  </article>`;
+}
+
 function renderPlayerPickRow(card, pick, summary) {
   const marketOptions = getPlayerPropOptions(pick).map(([value, label]) =>
     `<option value="${value}"${pick.market === value ? " selected" : ""}>${label}</option>`).join("");
@@ -2181,13 +2303,14 @@ function renderPlayerPickRow(card, pick, summary) {
   const milestoneName = pick.market === "DD" ? "Double-double" : "Triple-double";
   const current = getPlayerCurrentValue(summary, pick);
   const currentLabel = current == null ? "—" : binary ? `${current > 0 ? 100 : 0}%` : milestone ? `${current}/${milestone}` : formatPickNumber(current);
+  const lockButton = supportsPlayerPickLock(card) ? renderPickLockButton(pick, false) : "";
   return `<tr>
-    <th scope="row"><button type="button" class="pick-remove" data-pick-action="remove-player" data-player-id="${cleanText(pick.id)}" aria-label="Remove ${cleanText(pick.name)} from My Picks">×</button>${cleanText(pick.name)}</th>
+    <th scope="row"><span class="pick-player-heading">${cleanText(pick.name)}<span class="pick-row-actions">${lockButton}<button type="button" class="pick-remove" data-pick-action="remove-player" data-player-id="${cleanText(pick.id)}" aria-label="Remove ${cleanText(pick.name)} from My Picks">×</button></span></span></th>
     <td><select data-pick-field="player-market" data-player-id="${cleanText(pick.id)}" aria-label="Bet type for ${cleanText(pick.name)}">${marketOptions}</select></td>
     <td>${milestone ? `${milestone}+` : binary ? "—" : `<select data-pick-field="player-direction" data-player-id="${cleanText(pick.id)}" aria-label="Over or under for ${cleanText(pick.name)}"><option value="over"${pick.direction !== "under" ? " selected" : ""}>Over</option><option value="under"${pick.direction === "under" ? " selected" : ""}>Under</option></select>`}</td>
     <td>${milestone || binary ? "—" : `<input type="number" min="0" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-pick-field="player-line" data-player-id="${cleanText(pick.id)}" aria-label="Stat line for ${cleanText(pick.name)}">`}</td>
     <td>${currentLabel}</td>
-    <td class="pick-progress-cell">${renderPickProgress({ current, line: pick.line, direction: pick.direction, isFinal: card.dataset.completed === "true", upcoming: card.dataset.upcoming === "true", milestone, milestoneName, binary })}</td>
+    <td class="pick-progress-cell">${renderGamePickProgress(card, renderPickProgress({ current, line: pick.line, direction: pick.direction, isFinal: card.dataset.completed === "true", upcoming: card.dataset.upcoming === "true", milestone, milestoneName, binary }))}</td>
   </tr>`;
 }
 
@@ -2221,7 +2344,7 @@ function renderMarketPickRow(card, pick) {
       <td>—</td>
       <td><input type="number" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-pick-field="spread-line" aria-label="Spread line"></td>
       <td>${currentScore == null ? "—" : formatPickNumber(currentScore)}–${otherScore == null ? "—" : formatPickNumber(otherScore)}</td>
-      <td class="pick-progress-cell">${progress}</td>
+      <td class="pick-progress-cell">${renderGamePickProgress(card, progress)}</td>
     </tr>`;
   }
   const homeScore = readScoreFromCard(card, "home");
@@ -2233,7 +2356,7 @@ function renderMarketPickRow(card, pick) {
     <td><select data-pick-field="total-direction" aria-label="Over or under"><option value="over"${pick.direction !== "under" ? " selected" : ""}>Over</option><option value="under"${pick.direction === "under" ? " selected" : ""}>Under</option></select></td>
     <td><input type="number" min="0" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-pick-field="total-line" aria-label="Total points line"></td>
     <td>${current == null ? "—" : formatPickNumber(current)}</td>
-    <td class="pick-progress-cell">${renderPickProgress({ current, line: pick.line, direction: pick.direction, isFinal: card.dataset.completed === "true", upcoming: card.dataset.upcoming === "true" })}</td>
+    <td class="pick-progress-cell">${renderGamePickProgress(card, renderPickProgress({ current, line: pick.line, direction: pick.direction, isFinal: card.dataset.completed === "true", upcoming: card.dataset.upcoming === "true" }))}</td>
   </tr>`;
 }
 
@@ -2247,21 +2370,23 @@ function renderMyPicks(card) {
   card.querySelector('[data-pick-action="add-spread"]')?.toggleAttribute("disabled", hasSpread);
   card.querySelector('[data-pick-action="add-total"]')?.toggleAttribute("disabled", hasTotal);
   const summary = card.latestSummary;
+  const lockedPicks = supportsPlayerPickLock(card) ? picks.players.filter((pick) => pick.locked) : [];
+  const visiblePlayerPicks = supportsPlayerPickLock(card) ? picks.players.filter((pick) => !pick.locked) : picks.players;
   const rows = [
-    ...picks.players.map((pick) => renderPlayerPickRow(card, pick, summary)),
+    ...visiblePlayerPicks.map((pick) => renderPlayerPickRow(card, pick, summary)),
     ...picks.markets.map((pick) => renderMarketPickRow(card, pick)),
   ].join("");
-  const elapsedRow = rows
-    ? `<tr class="game-elapsed-row"><td colspan="5"></td><td class="pick-progress-cell">${renderGameElapsedProgress(card)}</td></tr>`
-    : "";
   section.hidden = !picks.players.length && !picks.markets.length;
+  const lockedCards = lockedPicks.length
+    ? `<div class="locked-player-picks">${lockedPicks.map((pick) => renderLockedGamePlayerPick(card, pick, summary)).join("")}</div>`
+    : "";
   const tables = rows ? `<div class="my-picks-table-wrap"><table class="my-picks-table">
     <thead><tr><th scope="col">PICK</th><th scope="col">BET</th><th scope="col">SIDE</th><th scope="col">LINE</th><th scope="col">NOW</th><th scope="col">PROGRESS</th></tr></thead>
-    <tbody>${rows}${elapsedRow}</tbody>
+    <tbody>${rows}</tbody>
   </table></div>` : "";
   const error = state.pickStorageError ? `<p class="my-picks-error">${cleanText(state.pickStorageError)}</p>` : "";
   const refreshError = card.pickRefreshError ? `<p class="my-picks-error">${cleanText(card.pickRefreshError)}</p>` : "";
-  container.innerHTML = `${tables}${error}${refreshError}`;
+  container.innerHTML = `${lockedCards}${tables}${error}${refreshError}`;
 }
 
 function initializeMyPicks() {
@@ -2326,9 +2451,21 @@ function handlePickAction(event) {
       break;
     case "remove-player": {
       const playerId = button.dataset.playerId;
+      const pick = picks.players.find((item) => item.id === playerId);
+      if (pick?.locked && supportsPlayerPickLock(card)
+        && !window.confirm(`Are you sure you want to delete ${pick.name} from My Picks?`)) break;
       picks.players = picks.players.filter((pick) => pick.id !== playerId);
       savePicks();
       updatePlayerStarButtons(card, playerId, false);
+      renderMyPicks(card);
+      break;
+    }
+    case "toggle-lock-player": {
+      if (!supportsPlayerPickLock(card)) break;
+      const pick = picks.players.find((item) => item.id === button.dataset.playerId);
+      if (!pick) break;
+      pick.locked = !pick.locked;
+      savePicks();
       renderMyPicks(card);
       break;
     }
@@ -3261,14 +3398,20 @@ async function refreshLivePicks() {
   }
 }
 
-function setRefreshing(isRefreshing) {
+function setRefreshing(isRefreshing, tab = state.tab) {
+  if (isRefreshing) {
+    elements.pullIndicatorLabel.textContent = tab === "Golf"
+      ? "Refreshing Golf leaderboard"
+      : `Refreshing ${tab} scores`;
+  }
   elements.refreshButton.classList.toggle("is-refreshing", isRefreshing);
   elements.refreshButton.disabled = isRefreshing;
   elements.pullIndicator.classList.toggle("visible", isRefreshing);
 }
 
 async function refreshScores() {
-  setRefreshing(true);
+  const activeTab = state.tab;
+  setRefreshing(true, activeTab);
   try {
     await loadScores();
   } finally {
