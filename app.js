@@ -47,6 +47,7 @@ const GOLF_TOURS = {
 };
 const scoreboardCache = new Map();
 const summaryCache = new Map();
+const spreadChartRanges = new Map();
 const basketballRosterCache = new Map();
 const basketballAverageCache = new Map();
 const footballRosterCache = new Map();
@@ -429,6 +430,27 @@ function getStatus(event) {
   };
 }
 
+function getLiveGameClock(event, sportKey) {
+  const competitionStatus = getCompetition(event).status ?? {};
+  const eventStatus = event.status ?? {};
+  const period = Number(competitionStatus.period ?? eventStatus.period);
+  const clock = competitionStatus.displayClock ?? eventStatus.displayClock;
+  const sport = SPORTS[sportKey];
+  const periodLabel = Number.isInteger(period) && period > 0
+    ? period <= (sport?.periods ?? 4)
+      ? `${sport?.periodLabel ?? "P"}${period}`
+      : sport?.periodLabel === "Q"
+        ? `${period - (sport.periods ?? 4)}OT`
+        : `${period}${sport?.periodLabel ?? "P"}`
+    : "";
+  const clockLabel = clock != null && String(clock).trim() ? String(clock).trim() : "Clock unavailable";
+  return [periodLabel, clockLabel].filter(Boolean).join(" · ");
+}
+
+function renderLiveGameIndicator(event, sportKey) {
+  return `<span class="game-live-indicator" role="status"><span class="game-live-light" aria-hidden="true"></span><span class="game-live-label">LIVE</span><span class="game-live-clock">${cleanText(getLiveGameClock(event, sportKey))}</span></span>`;
+}
+
 function getOdds(event, oddsOverride) {
   const competition = getCompetition(event);
   const odds = oddsOverride ?? competition.odds?.[0] ?? event.odds?.[0] ?? {};
@@ -587,7 +609,9 @@ function renderEvent(event, sportKey, oddsLoading = false, oddsOverride, periodS
   return `<article class="game-card" data-event-id="${cleanText(event.id)}" data-sport="${cleanText(sportKey)}" data-upcoming="${isUpcoming}" data-event-start="${eventTime}" data-season="${season}" data-completed="${status.completed}" data-live="${status.isLive}" data-game-period="${cleanText(competitionStatus.period ?? eventStatus.period ?? "")}" data-game-clock="${cleanText(competitionStatus.displayClock ?? eventStatus.displayClock ?? "")}" data-home-id="${cleanText(lines.homeId)}" data-home-name="${cleanText(lines.homeName)}" data-away-id="${cleanText(lines.awayId)}" data-away-name="${cleanText(lines.awayName)}" data-home-spread="${cleanText(lines.homeSpread)}" data-away-spread="${cleanText(lines.awaySpread)}" data-total="${cleanText(lines.total)}">
     <div class="game-topline">
       <div class="game-schedule">
-        <span class="game-status ${status.className}">${cleanText(formatGameTime(event))}</span>
+        ${status.isLive
+          ? renderLiveGameIndicator(event, sportKey)
+          : `<span class="game-status ${status.className}">${cleanText(formatGameTime(event))}</span>`}
         <span class="game-time">${cleanText(sportKey)}</span>
       </div>
       <span class="game-broadcast"><span class="meta-label">TV</span> ${cleanText(broadcast || "Not listed")}</span>
@@ -1824,6 +1848,7 @@ async function loadScores() {
       ? renderGamesByDay(sortedGames)
       : sortedGames.map(({ event, sportKey }) => renderEvent(event, sportKey)).join("");
     initializeMyPicks();
+    refreshLivePicks();
     if (loadTeamOdds) loadMyTeamOdds(sortedGames);
     if (loadTeamPeriodScores) loadMyTeamPeriodScores(sortedGames);
     elements.scoreList.querySelectorAll("details[data-details-id]").forEach((details) => {
@@ -2175,8 +2200,16 @@ function renderGameElapsedProgress(card) {
   return `<div class="game-elapsed"><span class="game-elapsed-note">${label}<span>${Number(percentage.toFixed(1))}%</span></span><span class="pick-progress game-elapsed-track"><span class="pick-progress-fill game-elapsed-fill" style="width:${percentage}%"></span></span></div>`;
 }
 
-function renderPickProgress({ current, line, direction = "over", isFinal = false, upcoming = false, milestone = 0, milestoneName = "", binary = false }) {
+function renderPickProgress({ current, line, direction = "over", isFinal = false, upcoming = false, milestone = 0, milestoneName = "", binary = false, loadingStats = false }) {
   const notStarted = upcoming && (current == null || current === 0);
+  if (current == null && loadingStats && !binary && !milestone) {
+    const target = Number(line);
+    const hasTarget = line != null && line !== "" && Number.isFinite(target);
+    const label = hasTarget
+      ? `0 / ${formatPickNumber(target)} to ${direction} · Loading live stats...`
+      : "Loading live stats...";
+    return `<span class="pick-progress-note">${label}</span><span class="pick-progress"><span class="pick-progress-fill" style="width:0%"></span></span>`;
+  }
   if (current == null && !upcoming) {
     return `<span class="pick-progress-note">${upcoming ? "Not started" : "Live stats unavailable"}</span>`;
   }
@@ -2235,10 +2268,12 @@ function renderGamePickProgress(card, progress) {
     : progress;
 }
 
-function renderPickLockButton(pick, locked, golf = false) {
+function renderPickLockButton(pick, locked, golf = false, marketType = "") {
   const action = locked ? "Unlock" : "Lock";
   const actionAttribute = golf ? "data-golf-pick-action" : "data-pick-action";
-  return `<button type="button" class="pick-lock${locked ? " is-locked" : ""}" ${actionAttribute}="toggle-lock-player" data-player-id="${cleanText(pick.id)}" aria-label="${action} ${cleanText(pick.name)}" title="${action} pick">
+  const actionName = marketType ? "toggle-lock-market" : "toggle-lock-player";
+  const actionTarget = marketType ? `data-market-type="${cleanText(marketType)}"` : `data-player-id="${cleanText(pick.id)}"`;
+  return `<button type="button" class="pick-lock${locked ? " is-locked" : ""}" ${actionAttribute}="${actionName}" ${actionTarget} aria-label="${action} ${cleanText(pick.name ?? marketType)}" title="${action} pick">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="${locked ? "M8 10V7a4 4 0 0 1 8 0v3" : "M8 10V7a4 4 0 0 1 7.5-1.8"}"></path></svg>
   </button>`;
 }
@@ -2269,6 +2304,8 @@ function renderLockedGamePlayerPick(card, pick, summary) {
   const binary = isFootballBinaryProp(pick.market);
   const milestone = pick.market === "DD" ? 2 : pick.market === "TD" ? 3 : 0;
   const milestoneName = pick.market === "DD" ? "Double-double" : "Triple-double";
+  const loadingStats = isBasketballPickCard(card)
+    && current == null && card.dataset.upcoming !== "true" && card.dataset.completed !== "true";
   const progress = renderPickProgress({
     current,
     line: pick.line,
@@ -2278,6 +2315,7 @@ function renderLockedGamePlayerPick(card, pick, summary) {
     milestone,
     milestoneName,
     binary,
+    loadingStats,
   });
   const playerSummary = isBasketballPickCard(card)
     ? renderBasketballPickSummary(pick)
@@ -2302,7 +2340,9 @@ function renderPlayerPickRow(card, pick, summary) {
   const milestone = pick.market === "DD" ? 2 : pick.market === "TD" ? 3 : 0;
   const milestoneName = pick.market === "DD" ? "Double-double" : "Triple-double";
   const current = getPlayerCurrentValue(summary, pick);
-  const currentLabel = current == null ? "—" : binary ? `${current > 0 ? 100 : 0}%` : milestone ? `${current}/${milestone}` : formatPickNumber(current);
+  const loadingStats = isBasketballPickCard(card)
+    && current == null && card.dataset.upcoming !== "true" && card.dataset.completed !== "true";
+  const currentLabel = current == null ? loadingStats ? "0" : "—" : binary ? `${current > 0 ? 100 : 0}%` : milestone ? `${current}/${milestone}` : formatPickNumber(current);
   const lockButton = supportsPlayerPickLock(card) ? renderPickLockButton(pick, false) : "";
   return `<tr>
     <th scope="row"><span class="pick-player-heading">${cleanText(pick.name)}<span class="pick-row-actions">${lockButton}<button type="button" class="pick-remove" data-pick-action="remove-player" data-player-id="${cleanText(pick.id)}" aria-label="Remove ${cleanText(pick.name)} from My Picks">×</button></span></span></th>
@@ -2310,54 +2350,280 @@ function renderPlayerPickRow(card, pick, summary) {
     <td>${milestone ? `${milestone}+` : binary ? "—" : `<select data-pick-field="player-direction" data-player-id="${cleanText(pick.id)}" aria-label="Over or under for ${cleanText(pick.name)}"><option value="over"${pick.direction !== "under" ? " selected" : ""}>Over</option><option value="under"${pick.direction === "under" ? " selected" : ""}>Under</option></select>`}</td>
     <td>${milestone || binary ? "—" : `<input type="number" min="0" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-pick-field="player-line" data-player-id="${cleanText(pick.id)}" aria-label="Stat line for ${cleanText(pick.name)}">`}</td>
     <td>${currentLabel}</td>
-    <td class="pick-progress-cell">${renderGamePickProgress(card, renderPickProgress({ current, line: pick.line, direction: pick.direction, isFinal: card.dataset.completed === "true", upcoming: card.dataset.upcoming === "true", milestone, milestoneName, binary }))}</td>
+    <td class="pick-progress-cell">${renderGamePickProgress(card, renderPickProgress({ current, line: pick.line, direction: pick.direction, isFinal: card.dataset.completed === "true", upcoming: card.dataset.upcoming === "true", milestone, milestoneName, binary, loadingStats }))}</td>
   </tr>`;
 }
 
-function renderMarketPickRow(card, pick) {
+function getSpreadChartElapsedSeconds(sportKey, periodValue, clockValue) {
+  const sport = SPORTS[sportKey];
+  if (!sport?.periodMinutes) return null;
+  const period = Number(periodValue);
+  if (!Number.isFinite(period) || period < 1) return null;
+  const clockMatch = String(clockValue ?? "").match(/^(\d+):(\d{1,2})(?:\.\d+)?$/);
+  if (!clockMatch) return null;
+  const remainingSeconds = Number(clockMatch[1]) * 60 + Number(clockMatch[2]);
+  const regulationSeconds = sport.periods * sport.periodMinutes * 60;
+  if (period <= sport.periods) {
+    return ((period - 1) * sport.periodMinutes * 60)
+      + Math.max(0, sport.periodMinutes * 60 - remainingSeconds);
+  }
+  const overtimeMinutes = sport.overtimeMinutes ?? sport.periodMinutes;
+  return regulationSeconds
+    + (period - sport.periods - 1) * overtimeMinutes * 60
+    + Math.max(0, overtimeMinutes * 60 - remainingSeconds);
+}
+
+function renderSpreadChart(card, pick) {
+  const sport = SPORTS[card.dataset.sport];
+  const teamId = String(pick.teamId);
+  const selectedIsHome = teamId === card.dataset.homeId;
+  const spreadLine = Number(pick.line);
+  const hasSpreadLine = pick.line != null && pick.line !== "" && Number.isFinite(spreadLine);
+  const isFavorite = hasSpreadLine && spreadLine < 0;
+  const summary = card.latestSummary;
+  const plays = isBasketballPickCard(card)
+    ? summary?.plays ?? []
+    : summary?.scoringPlays ?? [];
+  const chartPoints = [];
+  if (summary && plays.length) chartPoints.push({ elapsed: 0, margin: 0 });
+  for (const play of plays) {
+    if (isBasketballPickCard(card) && !play.scoringPlay) continue;
+    const homeScore = Number(play.homeScore);
+    const awayScore = Number(play.awayScore);
+    if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
+    const elapsed = getSpreadChartElapsedSeconds(
+      card.dataset.sport,
+      play.period?.number,
+      play.clock?.displayValue,
+    );
+    if (elapsed == null) continue;
+    const selectedScore = selectedIsHome ? homeScore : awayScore;
+    const opponentScore = selectedIsHome ? awayScore : homeScore;
+    const scoreMargin = selectedScore - opponentScore;
+    chartPoints.push({ elapsed, margin: isFavorite ? -scoreMargin : scoreMargin });
+  }
+
+  const regulationSeconds = sport.periods * sport.periodMinutes * 60;
+  const currentElapsed = card.dataset.completed === "true"
+    ? Math.max(regulationSeconds, ...chartPoints.map((point) => point.elapsed))
+    : getSpreadChartElapsedSeconds(card.dataset.sport, card.dataset.gamePeriod, card.dataset.gameClock);
+  const currentScore = readScoreFromCard(card, selectedIsHome ? "home" : "away");
+  const opponentScore = readScoreFromCard(card, selectedIsHome ? "away" : "home");
+  const scoreMargin = currentScore == null || opponentScore == null ? null : currentScore - opponentScore;
+  const currentMargin = scoreMargin == null ? null : isFavorite ? -scoreMargin : scoreMargin;
+  const lastPoint = chartPoints[chartPoints.length - 1];
+  if (currentElapsed != null && currentMargin != null
+    && (!lastPoint || lastPoint.margin !== currentMargin || currentElapsed !== lastPoint.elapsed || card.dataset.completed === "true")) {
+    chartPoints.push({ elapsed: currentElapsed, margin: currentMargin });
+  } else if (!chartPoints.length && card.dataset.upcoming === "true") {
+    chartPoints.push({ elapsed: 0, margin: 0 });
+  }
+
+  const duration = Math.max(regulationSeconds, ...chartPoints.map((point) => point.elapsed));
+  const width = 340;
+  const height = 88;
+  const left = 48;
+  const right = 332;
+  const top = 8;
+  const bottom = 60;
+  const chartKey = `${card.dataset.sport}:${card.dataset.eventId}:${teamId}`;
+  const range = spreadChartRanges.get(chartKey) ?? 15;
+  const mapY = (value) => top + ((isFavorite ? range + value : range - value) / (range * 2)) * (bottom - top);
+  const mapX = (value) => left + Math.max(0, Math.min(1, value / duration)) * (right - left);
+  const ticks = isFavorite ? [-range, 0, range] : [range, 0, -range];
+  const grid = ticks.map((value, index) => {
+    const y = mapY(value);
+    const position = index === 0 ? "top" : index === 2 ? "bottom" : "middle";
+    const tickLabel = value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : "0";
+    return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" class="spread-chart-grid"/><text x="${left - 5}" y="${y + 3}" class="spread-chart-tick spread-chart-y-tick" data-spread-chart-tick="${position}" text-anchor="end">${tickLabel}</text>`;
+  }).join("");
+  const line = hasSpreadLine
+    ? `<line x1="${left}" y1="${mapY(spreadLine)}" x2="${right}" y2="${mapY(spreadLine)}" class="spread-chart-line"/><text x="${right - 2}" y="${mapY(spreadLine) - 3}" class="spread-chart-line-label" text-anchor="end">${spreadLine > 0 ? "+" : ""}${formatPickNumber(spreadLine)}</text>`
+    : "";
+  const points = chartPoints
+    .sort((a, b) => a.elapsed - b.elapsed)
+    .map((point) => `${mapX(point.elapsed)},${mapY(point.margin)}`)
+    .join(" ");
+  const dots = chartPoints.map((point) =>
+    `<circle cx="${mapX(point.elapsed)}" cy="${mapY(point.margin)}" r="1.25" class="spread-chart-dot"/>`).join("");
+  const halfTime = duration / 2;
+  const midpointLabel = `${Math.round(halfTime / 60)} min`;
+  const endLabel = `${Math.round(duration / 60)} min`;
+  const statusLabel = !summary && card.dataset.live === "true"
+    ? "Loading scoring timeline..."
+    : card.dataset.upcoming === "true" ? "Game not started"
+      : currentMargin == null ? "Score timeline unavailable"
+        : `Current margin ${currentMargin > 0 ? "+" : ""}${formatPickNumber(currentMargin)}`;
+  const spreadLabel = hasSpreadLine
+    ? `Spread line ${spreadLine > 0 ? "+" : ""}${formatPickNumber(spreadLine)}`
+    : "Set a spread line";
+  const topAxisValue = isFavorite ? -range : range;
+  const bottomAxisValue = isFavorite ? range : -range;
+  const formatAxisValue = (value) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value)}`;
+  const axisLabel = `Selected-team margin · ${formatAxisValue(topAxisValue)} to ${formatAxisValue(bottomAxisValue)}`;
+  const label = `${pick.teamName || (selectedIsHome ? card.dataset.homeName : card.dataset.awayName)} spread chart. ${statusLabel}. ${spreadLabel}. ${axisLabel}.`;
+  const chart = `<div class="spread-chart-wrap" data-spread-chart-key="${cleanText(chartKey)}" data-spread-chart-team="${cleanText(teamId)}" data-spread-chart-range="${range}" data-spread-chart-favorite="${isFavorite}">
+    <div class="spread-chart-heading"><span>${cleanText(statusLabel)}</span><span>${cleanText(spreadLabel)} · ±${range}</span></div>
+    <svg class="spread-chart" viewBox="0 0 ${width} ${height}" role="group" aria-label="${cleanText(label)}">
+      <g class="spread-chart-plot">${grid}${line}
+        ${points ? `<polyline points="${points}" class="spread-chart-trend"/>` : ""}
+        ${dots}
+      </g>
+      <g class="spread-chart-range-control" role="button" tabindex="0" aria-label="Expand vertical range" data-spread-chart-action="increase">
+        <rect x="6" y="2" width="7" height="6" rx="1"/><text x="9.5" y="6.5">▲</text>
+      </g>
+      <g class="spread-chart-range-control" role="button" tabindex="0" aria-label="Narrow vertical range" data-spread-chart-action="decrease">
+        <rect x="6" y="61" width="7" height="6" rx="1"/><text x="9.5" y="65.5">▼</text>
+      </g>
+      <line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" class="spread-chart-axis"/>
+      <text x="${left}" y="${height - 4}" class="spread-chart-tick spread-chart-x-tick">0</text>
+      <text x="${mapX(halfTime)}" y="${height - 4}" class="spread-chart-tick spread-chart-x-tick" text-anchor="middle">${midpointLabel}</text>
+      <text x="${right}" y="${height - 4}" class="spread-chart-tick spread-chart-x-tick" text-anchor="end">${endLabel}</text>
+    </svg>
+    <span class="visually-hidden">${cleanText(axisLabel)}</span>
+  </div>`;
+  return chart;
+}
+
+function getSpreadPickForChart(card, chart) {
+  const teamId = chart.dataset.spreadChartTeam;
+  return getGamePicks(card).markets.find((pick) =>
+    pick.type === "spread" && String(pick.teamId) === teamId);
+}
+
+function renderSpreadChartInPlace(card, chart) {
+  const pick = getSpreadPickForChart(card, chart);
+  if (!pick) return;
+  const focusedAction = document.activeElement?.dataset.spreadChartAction;
+  const chartKey = chart.dataset.spreadChartKey;
+  chart.outerHTML = renderSpreadChart(card, pick);
+  if (focusedAction) {
+    const updatedChart = [...card.querySelectorAll(".spread-chart-wrap")]
+      .find((candidate) => candidate.dataset.spreadChartKey === chartKey);
+    updatedChart?.querySelector(`[data-spread-chart-action="${focusedAction}"]`)?.focus();
+  }
+}
+
+function setSpreadChartRange(card, chart, range) {
+  const chartKey = chart.dataset.spreadChartKey;
+  if (!chartKey) return;
+  const nextRange = Math.max(5, Math.min(50, Math.round(range / 5) * 5));
+  spreadChartRanges.set(chartKey, nextRange);
+  renderSpreadChartInPlace(card, chart);
+}
+
+function updateSpreadChartRangeDuringPinch(chart, range) {
+  const nextRange = Math.max(5, Math.min(50, Math.round(range / 5) * 5));
+  chart.dataset.spreadChartRange = String(nextRange);
+  const rangeLabel = chart.querySelector(".spread-chart-heading span:last-child");
+  if (rangeLabel) {
+    rangeLabel.textContent = `${rangeLabel.textContent.replace(/\s·\s±\d+$/, "")} · ±${nextRange}`;
+  }
+  const rangeTicks = chart.querySelectorAll(".spread-chart-y-tick");
+  const isFavorite = chart.dataset.spreadChartFavorite === "true";
+  rangeTicks.forEach((tick) => {
+    const position = tick.dataset.spreadChartTick;
+    const topValue = isFavorite ? -nextRange : nextRange;
+    const bottomValue = isFavorite ? nextRange : -nextRange;
+    tick.textContent = position === "top"
+      ? `${topValue > 0 ? "+" : "−"}${Math.abs(topValue)}`
+      : position === "bottom" ? `${bottomValue > 0 ? "+" : "−"}${Math.abs(bottomValue)}` : "0";
+  });
+  const plot = chart.querySelector(".spread-chart-plot");
+  if (plot) {
+    const scale = 15 / nextRange;
+    plot.setAttribute("transform", `translate(0 ${34 * (1 - scale)}) scale(1 ${scale})`);
+  }
+  chart.querySelector(".spread-chart")?.setAttribute(
+    "aria-label",
+    isFavorite
+      ? `Favorite score differential chart, vertical range minus ${nextRange} to plus ${nextRange}`
+      : `Underdog score differential chart, vertical range plus ${nextRange} to minus ${nextRange}`,
+  );
+}
+
+function getMarketPickProgress(card, pick) {
   if (pick.type === "spread") {
-    const options = [
-      [card.dataset.homeId, card.dataset.homeName, card.dataset.homeSpread],
-      [card.dataset.awayId, card.dataset.awayName, card.dataset.awaySpread],
-    ].map(([teamId, name, line]) => `<option value="${cleanText(teamId)}" data-line="${cleanText(line)}"${String(pick.teamId) === String(teamId) ? " selected" : ""}>${cleanText(name)}</option>`).join("");
     const currentScore = readScoreFromCard(card, String(pick.teamId) === card.dataset.homeId ? "home" : "away");
     const otherScore = readScoreFromCard(card, String(pick.teamId) === card.dataset.homeId ? "away" : "home");
     const line = Number(pick.line);
-    const adjustedMargin = currentScore == null || otherScore == null || pick.line == null || pick.line === "" || !Number.isFinite(line)
-      ? null
-      : currentScore + line - otherScore;
-    const progress = card.dataset.upcoming === "true"
-      ? `<span class="pick-progress-note">${pick.line == null || pick.line === "" ? "0 · Set a line" : `0 of ${formatPickNumber(Math.abs(line))} goal to cover`}</span><span class="pick-progress spread-progress"><span class="pick-progress-fill" style="width:0%;margin-left:0%"></span></span>`
-      : adjustedMargin == null
-      ? `<span class="pick-progress-note">Live scores unavailable</span>`
-      : (() => {
-        const width = Math.min(50, Math.abs(adjustedMargin) * 5);
-        const margin = adjustedMargin >= 0 ? 50 : 50 - width;
-        const text = card.dataset.completed === "true"
-          ? adjustedMargin >= 0 ? "Covered" : "Did not cover"
-          : adjustedMargin >= 0 ? `Covering by ${formatPickNumber(adjustedMargin)}` : `Needs ${formatPickNumber(Math.abs(adjustedMargin))} to cover`;
-        return `<span class="pick-progress-note">${text}</span><span class="pick-progress spread-progress"><span class="pick-progress-fill${card.dataset.completed === "true" && adjustedMargin < 0 ? " is-missed" : ""}" style="width:${width}%;margin-left:${margin}%"></span></span>`;
-      })();
-    return `<tr>
-      <th scope="row"><button type="button" class="pick-remove" data-pick-action="remove-market" data-market-type="spread" aria-label="Remove spread from My Picks">×</button>Spread</th>
-      <td><select data-pick-field="spread-team" aria-label="Team for spread pick">${options}</select></td>
-      <td>—</td>
-      <td><input type="number" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-pick-field="spread-line" aria-label="Spread line"></td>
-      <td>${currentScore == null ? "—" : formatPickNumber(currentScore)}–${otherScore == null ? "—" : formatPickNumber(otherScore)}</td>
-      <td class="pick-progress-cell">${renderGamePickProgress(card, progress)}</td>
-    </tr>`;
+    const signedLine = pick.line == null || pick.line === "" || !Number.isFinite(line)
+      ? "—"
+      : `${line > 0 ? "+" : ""}${formatPickNumber(line)}`;
+    return {
+      label: `${pick.teamName || (String(pick.teamId) === card.dataset.homeId ? card.dataset.homeName : card.dataset.awayName)} ${signedLine} Spread`,
+      current: currentScore == null || otherScore == null ? "—" : `${formatPickNumber(currentScore)}–${formatPickNumber(otherScore)}`,
+      progress: renderSpreadChart(card, pick),
+    };
   }
   const homeScore = readScoreFromCard(card, "home");
   const awayScore = readScoreFromCard(card, "away");
   const current = homeScore == null || awayScore == null ? null : homeScore + awayScore;
+  const line = Number(pick.line);
+  const progress = renderPickProgress({
+    current,
+    line: pick.line,
+    direction: pick.direction,
+    isFinal: card.dataset.completed === "true",
+    upcoming: card.dataset.upcoming === "true",
+  });
+  const direction = pick.direction === "under" ? "Under" : "Over";
+  const formattedLine = pick.line == null || pick.line === "" || !Number.isFinite(line)
+    ? "—"
+    : formatPickNumber(line);
+  return {
+    label: `${direction} ${formattedLine} Total`,
+    current: current == null ? "—" : formatPickNumber(current),
+    progress: renderGamePickProgress(card, progress),
+  };
+}
+
+function renderLockedMarketPick(card, pick) {
+  const details = getMarketPickProgress(card, pick);
+  return `<article class="locked-player-pick">
+    <div class="locked-player-pick-heading">
+      <strong>${cleanText(details.label)}</strong>
+      <span class="locked-player-pick-actions">
+        ${renderPickLockButton(pick, true, false, pick.type)}
+        <button type="button" class="pick-remove" data-pick-action="remove-market" data-market-type="${cleanText(pick.type)}" aria-label="Remove ${cleanText(pick.type)} pick from My Picks">×</button>
+      </span>
+    </div>
+    <div class="locked-player-pick-progress">${details.progress}</div>
+  </article>`;
+}
+
+function renderMarketPickRow(card, pick) {
+  const lockButton = supportsPlayerPickLock(card) ? renderPickLockButton(pick, false, false, pick.type) : "";
+  const details = getMarketPickProgress(card, pick);
   return `<tr>
-    <th scope="row"><button type="button" class="pick-remove" data-pick-action="remove-market" data-market-type="total" aria-label="Remove over/under from My Picks">×</button>O/U</th>
+    <th scope="row"><span class="pick-player-heading">O/U<span class="pick-row-actions">${lockButton}<button type="button" class="pick-remove" data-pick-action="remove-market" data-market-type="total" aria-label="Remove over/under from My Picks">×</button></span></span></th>
     <td>Total</td>
     <td><select data-pick-field="total-direction" aria-label="Over or under"><option value="over"${pick.direction !== "under" ? " selected" : ""}>Over</option><option value="under"${pick.direction === "under" ? " selected" : ""}>Under</option></select></td>
     <td><input type="number" min="0" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-pick-field="total-line" aria-label="Total points line"></td>
-    <td>${current == null ? "—" : formatPickNumber(current)}</td>
-    <td class="pick-progress-cell">${renderGamePickProgress(card, renderPickProgress({ current, line: pick.line, direction: pick.direction, isFinal: card.dataset.completed === "true", upcoming: card.dataset.upcoming === "true" }))}</td>
+    <td>${details.current}</td>
+    <td class="pick-progress-cell">${details.progress}</td>
   </tr>`;
+}
+
+function renderSpreadPickCard(card, pick) {
+  const details = getMarketPickProgress(card, pick);
+  const options = [
+    [card.dataset.homeId, card.dataset.homeName, card.dataset.homeSpread],
+    [card.dataset.awayId, card.dataset.awayName, card.dataset.awaySpread],
+  ].map(([teamId, name, line]) => `<option value="${cleanText(teamId)}" data-line="${cleanText(line)}"${String(pick.teamId) === String(teamId) ? " selected" : ""}>${cleanText(name)}</option>`).join("");
+  const lockButton = supportsPlayerPickLock(card) ? renderPickLockButton(pick, false, false, "spread") : "";
+  return `<article class="spread-pick-card">
+    <div class="spread-pick-card-heading">
+      <strong>${cleanText(details.label)}</strong>
+      <span class="locked-player-pick-actions">${lockButton}<button type="button" class="pick-remove" data-pick-action="remove-market" data-market-type="spread" aria-label="Remove spread from My Picks">×</button></span>
+    </div>
+    <div class="spread-pick-card-controls">
+      <label>TEAM<select data-pick-field="spread-team" aria-label="Team for spread pick">${options}</select></label>
+      <label>LINE<input type="number" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-pick-field="spread-line" aria-label="Spread line"></label>
+      <span class="spread-pick-current"><span class="meta-label">SCORE</span><strong>${cleanText(details.current)}</strong></span>
+    </div>
+    <div class="spread-pick-card-chart">${details.progress}</div>
+  </article>`;
 }
 
 function renderMyPicks(card) {
@@ -2372,13 +2638,25 @@ function renderMyPicks(card) {
   const summary = card.latestSummary;
   const lockedPicks = supportsPlayerPickLock(card) ? picks.players.filter((pick) => pick.locked) : [];
   const visiblePlayerPicks = supportsPlayerPickLock(card) ? picks.players.filter((pick) => !pick.locked) : picks.players;
+  const lockedMarkets = supportsPlayerPickLock(card) ? picks.markets.filter((pick) => pick.locked) : [];
+  const visibleMarkets = (supportsPlayerPickLock(card) ? picks.markets.filter((pick) => !pick.locked) : picks.markets)
+    .filter((pick) => pick.type !== "spread");
+  const visibleSpreadPicks = (supportsPlayerPickLock(card) ? picks.markets.filter((pick) => !pick.locked) : picks.markets)
+    .filter((pick) => pick.type === "spread");
   const rows = [
     ...visiblePlayerPicks.map((pick) => renderPlayerPickRow(card, pick, summary)),
-    ...picks.markets.map((pick) => renderMarketPickRow(card, pick)),
+    ...visibleMarkets.map((pick) => renderMarketPickRow(card, pick)),
   ].join("");
   section.hidden = !picks.players.length && !picks.markets.length;
-  const lockedCards = lockedPicks.length
-    ? `<div class="locked-player-picks">${lockedPicks.map((pick) => renderLockedGamePlayerPick(card, pick, summary)).join("")}</div>`
+  const allLockedCards = [
+    ...lockedPicks.map((pick) => renderLockedGamePlayerPick(card, pick, summary)),
+    ...lockedMarkets.map((pick) => renderLockedMarketPick(card, pick)),
+  ];
+  const lockedCards = allLockedCards.length
+    ? `<div class="locked-player-picks">${allLockedCards.join("")}</div>`
+    : "";
+  const spreadCards = visibleSpreadPicks.length
+    ? `<div class="spread-pick-cards">${visibleSpreadPicks.map((pick) => renderSpreadPickCard(card, pick)).join("")}</div>`
     : "";
   const tables = rows ? `<div class="my-picks-table-wrap"><table class="my-picks-table">
     <thead><tr><th scope="col">PICK</th><th scope="col">BET</th><th scope="col">SIDE</th><th scope="col">LINE</th><th scope="col">NOW</th><th scope="col">PROGRESS</th></tr></thead>
@@ -2386,7 +2664,7 @@ function renderMyPicks(card) {
   </table></div>` : "";
   const error = state.pickStorageError ? `<p class="my-picks-error">${cleanText(state.pickStorageError)}</p>` : "";
   const refreshError = card.pickRefreshError ? `<p class="my-picks-error">${cleanText(card.pickRefreshError)}</p>` : "";
-  container.innerHTML = `${lockedCards}${tables}${error}${refreshError}`;
+  container.innerHTML = `${lockedCards}${spreadCards}${tables}${error}${refreshError}`;
 }
 
 function initializeMyPicks() {
@@ -2469,10 +2747,23 @@ function handlePickAction(event) {
       renderMyPicks(card);
       break;
     }
-    case "remove-market":
+    case "toggle-lock-market": {
+      if (!supportsPlayerPickLock(card)) break;
+      const pick = picks.markets.find((item) => item.type === button.dataset.marketType);
+      if (!pick) break;
+      pick.locked = !pick.locked;
+      savePicks();
+      renderMyPicks(card);
+      break;
+    }
+    case "remove-market": {
+      const pick = picks.markets.find((item) => item.type === button.dataset.marketType);
+      if (pick?.locked && supportsPlayerPickLock(card)
+        && !window.confirm(`Are you sure you want to delete the locked ${pick.type === "spread" ? "spread" : "over/under"} pick?`)) break;
       picks.markets = picks.markets.filter((pick) => pick.type !== button.dataset.marketType);
       persistAndRenderPicks(card);
       break;
+    }
   }
 }
 
@@ -3348,8 +3639,11 @@ async function refreshLivePicks() {
   const cards = [...elements.scoreList.querySelectorAll(".game-card")].filter((card) => {
     const picks = state.picks[getGamePickKey(card)];
     const hasPicks = Boolean(picks?.players?.length || picks?.markets?.length);
+    const needsFinalSpreadTimeline = picks?.markets?.some((pick) => pick.type === "spread") && !card.latestSummary;
     const gameStarted = Number(card.dataset.eventStart) <= Date.now();
-    return hasPicks && card.dataset.completed !== "true" && (card.dataset.live === "true" || gameStarted);
+    return card.dataset.live === "true"
+      || hasPicks && card.dataset.completed !== "true" && gameStarted
+      || needsFinalSpreadTimeline;
   });
   if (!cards.length && !isGolfTab) return;
   livePickRefreshInProgress = true;
@@ -3380,11 +3674,18 @@ async function refreshLivePicks() {
           if (status.state === "in") card.dataset.upcoming = "false";
         }
         if (status.completed) card.dataset.upcoming = "false";
-        const statusElement = card.querySelector(".game-status");
-        if (statusElement && (status.shortDetail || status.detail)) {
-          statusElement.textContent = status.shortDetail || status.detail;
-          statusElement.classList.toggle("live", card.dataset.live === "true");
-          statusElement.classList.toggle("final", card.dataset.completed === "true");
+        const statusElement = card.querySelector(".game-live-indicator, .game-status");
+        if (statusElement) {
+          if (card.dataset.live === "true") {
+            statusElement.outerHTML = renderLiveGameIndicator({
+              competitions: [competition ?? {}],
+              status: summary.header?.competitions?.[0]?.status,
+            }, card.dataset.sport);
+          } else {
+            const label = status.shortDetail || status.detail
+              || (card.dataset.completed === "true" ? "Final" : "In progress");
+            statusElement.outerHTML = `<span class="game-status${card.dataset.completed === "true" ? " final" : ""}">${cleanText(label)}</span>`;
+          }
         }
         card.pickRefreshError = "";
         renderMyPicks(card);
@@ -3483,10 +3784,80 @@ document.querySelectorAll(".today-view-switch button").forEach((button) => {
 
 elements.refreshButton.addEventListener("click", refreshScores);
 
+function handleSpreadChartControl(control, directionOverride) {
+  const card = control.closest(".game-card");
+  const chart = control.closest(".spread-chart-wrap");
+  if (!card || !chart) return;
+  const currentRange = spreadChartRanges.get(chart.dataset.spreadChartKey)
+    ?? Number(chart.dataset.spreadChartRange)
+    ?? 15;
+  const direction = directionOverride ?? (control.dataset.spreadChartAction === "increase" ? 1 : -1);
+  setSpreadChartRange(card, chart, currentRange + direction * 5);
+}
+
 elements.scoreList.addEventListener("click", (event) => {
+  const spreadChartControl = event.target.closest("[data-spread-chart-action]");
+  if (spreadChartControl) handleSpreadChartControl(spreadChartControl);
   handleGolfPickAction(event);
   handlePickAction(event);
 });
+elements.scoreList.addEventListener("keydown", (event) => {
+  const control = event.target.closest("[data-spread-chart-action]");
+  if (!control) return;
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    event.preventDefault();
+    handleSpreadChartControl(control, event.key === "ArrowUp" ? 1 : -1);
+    return;
+  }
+  if (!["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  handleSpreadChartControl(control);
+});
+let spreadPinchGesture = null;
+function getTouchDistance(touches) {
+  const x = touches[0].clientX - touches[1].clientX;
+  const y = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(x, y);
+}
+
+elements.scoreList.addEventListener("touchstart", (event) => {
+  if (event.touches.length !== 2) {
+    spreadPinchGesture = null;
+    return;
+  }
+  const chart = event.target.closest(".spread-chart-wrap");
+  const card = chart?.closest(".game-card");
+  if (!chart || !card) return;
+  spreadPinchGesture = {
+    chart,
+    card,
+    distance: getTouchDistance(event.touches),
+    range: Number(chart.dataset.spreadChartRange) || 15,
+  };
+}, { passive: true });
+
+elements.scoreList.addEventListener("touchmove", (event) => {
+  if (!spreadPinchGesture || event.touches.length !== 2) return;
+  event.preventDefault();
+  const distanceChange = getTouchDistance(event.touches) - spreadPinchGesture.distance;
+  const range = spreadPinchGesture.range + distanceChange / 8;
+  const nextRange = Math.max(5, Math.min(50, Math.round(range / 5) * 5));
+  spreadChartRanges.set(spreadPinchGesture.chart.dataset.spreadChartKey, nextRange);
+  updateSpreadChartRangeDuringPinch(spreadPinchGesture.chart, nextRange);
+}, { passive: false });
+
+function finishSpreadChartPinch() {
+  if (!spreadPinchGesture) return;
+  const { chart, card } = spreadPinchGesture;
+  spreadPinchGesture = null;
+  if (chart.isConnected) renderSpreadChartInPlace(card, chart);
+}
+
+elements.scoreList.addEventListener("touchend", (event) => {
+  if (spreadPinchGesture && event.touches.length < 2) finishSpreadChartPinch();
+}, { passive: true });
+elements.scoreList.addEventListener("touchcancel", finishSpreadChartPinch, { passive: true });
+
 elements.scoreList.addEventListener("input", (event) => {
   const field = event.target.closest("[data-pick-field]");
   const card = field?.closest(".game-card");
@@ -3517,20 +3888,37 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "hidden") refreshLivePicks();
 });
 
-let touchStartY = 0;
+let touchStartY = null;
 let pullRefreshInProgress = false;
 document.addEventListener("touchstart", (event) => {
-  if (window.scrollY === 0 && event.touches.length === 1) touchStartY = event.touches[0].clientY;
+  touchStartY = window.scrollY === 0 && event.touches.length === 1
+    ? event.touches[0].clientY
+    : null;
 }, { passive: true });
 
+document.addEventListener("touchmove", (event) => {
+  if (touchStartY !== null && event.touches.length === 1
+    && event.touches[0].clientY > touchStartY && window.scrollY === 0) {
+    event.preventDefault();
+  }
+}, { passive: false });
+
 document.addEventListener("touchend", (event) => {
-  if (!touchStartY || pullRefreshInProgress || window.scrollY !== 0 || !event.changedTouches.length) return;
+  if (touchStartY === null) return;
+  if (!event.changedTouches.length) {
+    touchStartY = null;
+    return;
+  }
   const distance = event.changedTouches[0].clientY - touchStartY;
-  touchStartY = 0;
-  if (distance > 95) {
+  touchStartY = null;
+  if (!pullRefreshInProgress && window.scrollY === 0 && distance > 95) {
     pullRefreshInProgress = true;
     refreshScores().finally(() => { pullRefreshInProgress = false; });
   }
+}, { passive: true });
+
+document.addEventListener("touchcancel", () => {
+  touchStartY = null;
 }, { passive: true });
 
 loadScores();

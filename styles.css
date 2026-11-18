@@ -21,6 +21,8 @@
 
 * { box-sizing: border-box; }
 
+html { overscroll-behavior-y: contain; }
+
 body {
   min-width: 320px;
   margin: 0;
@@ -287,6 +289,9 @@ h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
 .game-status { color: var(--soft); font-size: 12px; font-weight: 600; }
 .game-status.live { color: var(--red); }
 .game-status.final { color: #9da69f; }
+.game-live-indicator { display: inline-flex; align-items: center; gap: 6px; color: #ff7771; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .45px; }
+.game-live-light { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #ff4d48; box-shadow: 0 0 7px rgba(255,77,72,.72); animation: live-light-pulse 1.4s ease-in-out infinite; }
+.game-live-clock { color: #f0c4c1; font-size: 10px; font-weight: 500; letter-spacing: 0; }
 .game-time { color: #8d978f; font-family: var(--mono); font-size: 10px; }
 .game-broadcast { flex: none; color: #d3dad4; font-size: 10px; font-weight: 600; }
 .game-broadcast .meta-label { margin-right: 4px; }
@@ -377,8 +382,35 @@ h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
 .game-elapsed-note { display: flex; justify-content: space-between; gap: 5px; margin-bottom: 4px; color: #78837a; font-size: 8px; line-height: 1.35; text-align: left; }
 .game-elapsed-track { height: 5px; background: #252d27; }
 .game-elapsed-fill { background: #e47470; }
-.spread-progress { position: relative; }
-.spread-progress::after { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(255,255,255,.55); content: ""; }
+.spread-pick-cards { display: grid; gap: 8px; margin-bottom: 9px; }
+.spread-pick-card { min-width: 0; padding: 9px 10px; border: 1px solid rgba(182,243,106,.17); border-radius: 8px; background: rgba(182,243,106,.025); }
+.spread-pick-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #e5e9e5; font-size: 10px; }
+.spread-pick-card-heading > strong { min-width: 0; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.spread-pick-card-controls { display: flex; align-items: end; gap: 9px; margin: 8px 0; }
+.spread-pick-card-controls label { display: grid; gap: 4px; color: #7f8a81; font-family: var(--mono); font-size: 8px; }
+.spread-pick-card-controls select, .spread-pick-card-controls input { max-width: 100%; padding: 5px 6px; border: 1px solid #343d36; border-radius: 5px; background: #111512; color: #e5e9e5; font: 10px var(--mono); }
+.spread-pick-card-controls select { width: min(42vw, 190px); }
+.spread-pick-card-controls input { width: 68px; }
+.spread-pick-current { display: grid; gap: 5px; margin-left: auto; text-align: right; }
+.spread-pick-current strong { color: #d3dad4; font-family: var(--mono); font-size: 10px; }
+.spread-pick-card-chart { width: 100%; min-width: 0; }
+.spread-chart-wrap { width: 100%; min-width: 0; color: #aeb8af; touch-action: pan-y; }
+.spread-chart-heading { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; color: #c0c8c1; font-size: 8px; line-height: 1.4; }
+.spread-chart-heading span:last-child { color: #f0c66e; text-align: right; }
+.spread-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.spread-chart-grid { stroke: rgba(255,255,255,.1); stroke-width: .7; }
+.spread-chart-axis { stroke: #667168; stroke-width: .8; }
+.spread-chart-tick { fill: #879188; font-family: var(--mono); font-size: 8px; }
+.spread-chart-x-tick, .spread-chart-y-tick { font-size: 3.5px; }
+.spread-chart-line { stroke: #f0c66e; stroke-dasharray: 2 2; stroke-width: .65; }
+.spread-chart-line-label { fill: #f0c66e; font-family: var(--mono); font-size: 5px; }
+.spread-chart-trend { fill: none; stroke: var(--green); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.1; }
+.spread-chart-dot { fill: #f0f3ef; stroke: #1b201c; stroke-width: .5; }
+.spread-chart-range-control { cursor: pointer; outline: none; }
+.spread-chart-range-control rect { fill: #222a24; stroke: #465448; stroke-width: .5; }
+.spread-chart-range-control text { fill: #c7d2c8; font-size: 4px; text-anchor: middle; }
+.spread-chart-range-control:hover rect, .spread-chart-range-control:focus rect { fill: #354332; stroke: var(--green); }
+.locked-player-pick-progress .spread-chart-wrap { width: 100%; }
 .pick-progress-fill { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .25s ease; }
 .pick-progress-fill.is-missed { background: #e47470; }
 .pick-remove { margin-right: 5px; padding: 0 3px; border: 0; background: transparent; color: #879188; font-size: 15px; line-height: 1; cursor: pointer; }
@@ -449,6 +481,7 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
 .pull-indicator .loader { width: 13px; height: 13px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes live-light-pulse { 50% { opacity: .48; box-shadow: 0 0 2px rgba(255,77,72,.45); } }
 
 @media (max-width: 620px) {
   .app-shell { padding: 0 16px; }
