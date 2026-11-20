@@ -640,7 +640,8 @@ function renderEvent(event, sportKey, oddsLoading = false, oddsOverride, periodS
 
 async function fetchScoreboard(sportKey, date) {
   const sport = SPORTS[sportKey];
-  const response = await fetch(`${API_ROOT}/${sport.path}/scoreboard?dates=${date}`, { headers: { Accept: "application/json" } });
+  const groupFilter = ["NCAAM", "NCAAW"].includes(sportKey) ? "&groups=50" : "";
+  const response = await fetch(`${API_ROOT}/${sport.path}/scoreboard?dates=${date}${groupFilter}`, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`${sport.label} scoreboard returned HTTP ${response.status}`);
   return response.json();
 }
