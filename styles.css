@@ -401,7 +401,7 @@ h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
 .spread-chart-grid { stroke: rgba(255,255,255,.1); stroke-width: .7; }
 .spread-chart-axis { stroke: #667168; stroke-width: .8; }
 .spread-chart-tick { fill: #879188; font-family: var(--mono); font-size: 8px; }
-.spread-chart-x-tick, .spread-chart-y-tick { font-size: 3.5px; }
+.spread-chart-x-tick, .spread-chart-y-tick { font-size: 5px; }
 .spread-chart-line { stroke: #f0c66e; stroke-dasharray: 2 2; stroke-width: .65; }
 .spread-chart-line-label { fill: #f0c66e; font-family: var(--mono); font-size: 5px; }
 .spread-chart-trend { fill: none; stroke: var(--green); stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.1; }
@@ -532,6 +532,8 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
   .stats-grid { grid-template-columns: 1fr; gap: 13px; }
   footer { flex-direction: column; gap: 6px; margin-top: 27px; padding-bottom: 18px; }
   .pull-indicator { font-size: 10px; }
+  .spread-chart-range-control rect { width: 10px; height: 8px; }
+  .spread-chart-range-control text { font-size: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

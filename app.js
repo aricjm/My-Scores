@@ -2425,8 +2425,8 @@ function renderSpreadChart(card, pick) {
   const height = 88;
   const left = 48;
   const right = 332;
-  const top = 8;
-  const bottom = 60;
+  const top = 18;
+  const bottom = 70;
   const chartKey = `${card.dataset.sport}:${card.dataset.eventId}:${teamId}`;
   const range = spreadChartRanges.get(chartKey) ?? 15;
   const mapY = (value) => top + ((isFavorite ? range + value : range - value) / (range * 2)) * (bottom - top);
@@ -2436,10 +2436,11 @@ function renderSpreadChart(card, pick) {
     const y = mapY(value);
     const position = index === 0 ? "top" : index === 2 ? "bottom" : "middle";
     const tickLabel = value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : "0";
-    return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" class="spread-chart-grid"/><text x="${left - 5}" y="${y + 3}" class="spread-chart-tick spread-chart-y-tick" data-spread-chart-tick="${position}" text-anchor="end">${tickLabel}</text>`;
+    const tickY = position === "top" ? y - 2 : position === "bottom" ? y + 6 : y + 3;
+    return `<line x1="6" y1="${y}" x2="${right}" y2="${y}" class="spread-chart-grid"/><text x="9" y="${tickY}" class="spread-chart-tick spread-chart-y-tick" data-spread-chart-tick="${position}" text-anchor="end">${tickLabel}</text>`;
   }).join("");
   const line = hasSpreadLine
-    ? `<line x1="${left}" y1="${mapY(spreadLine)}" x2="${right}" y2="${mapY(spreadLine)}" class="spread-chart-line"/><text x="${right - 2}" y="${mapY(spreadLine) - 3}" class="spread-chart-line-label" text-anchor="end">${spreadLine > 0 ? "+" : ""}${formatPickNumber(spreadLine)}</text>`
+    ? `<line x1="6" y1="${mapY(spreadLine)}" x2="${right}" y2="${mapY(spreadLine)}" class="spread-chart-line"/><text x="${right - 2}" y="${mapY(spreadLine) - 3}" class="spread-chart-line-label" text-anchor="end">${spreadLine > 0 ? "+" : ""}${formatPickNumber(spreadLine)}</text>`
     : "";
   const points = chartPoints
     .sort((a, b) => a.elapsed - b.elapsed)
@@ -2464,7 +2465,7 @@ function renderSpreadChart(card, pick) {
   const axisLabel = `Selected-team margin · ${formatAxisValue(topAxisValue)} to ${formatAxisValue(bottomAxisValue)}`;
   const label = `${pick.teamName || (selectedIsHome ? card.dataset.homeName : card.dataset.awayName)} spread chart. ${statusLabel}. ${spreadLabel}. ${axisLabel}.`;
   const chart = `<div class="spread-chart-wrap" data-spread-chart-key="${cleanText(chartKey)}" data-spread-chart-team="${cleanText(teamId)}" data-spread-chart-range="${range}" data-spread-chart-favorite="${isFavorite}">
-    <div class="spread-chart-heading"><span>${cleanText(statusLabel)}</span><span>${cleanText(spreadLabel)} · ±${range}</span></div>
+    <div class="spread-chart-heading"><span>${cleanText(statusLabel)}</span></div>
     <svg class="spread-chart" viewBox="0 0 ${width} ${height}" role="group" aria-label="${cleanText(label)}">
       <g class="spread-chart-plot">${grid}${line}
         ${points ? `<polyline points="${points}" class="spread-chart-trend"/>` : ""}
@@ -2474,12 +2475,12 @@ function renderSpreadChart(card, pick) {
         <rect x="6" y="2" width="7" height="6" rx="1"/><text x="9.5" y="6.5">▲</text>
       </g>
       <g class="spread-chart-range-control" role="button" tabindex="0" aria-label="Narrow vertical range" data-spread-chart-action="decrease">
-        <rect x="6" y="61" width="7" height="6" rx="1"/><text x="9.5" y="65.5">▼</text>
+        <rect x="6" y="80" width="7" height="6" rx="1"/><text x="9.5" y="84.5">▼</text>
       </g>
-      <line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" class="spread-chart-axis"/>
-      <text x="${left}" y="${height - 4}" class="spread-chart-tick spread-chart-x-tick">0</text>
-      <text x="${mapX(halfTime)}" y="${height - 4}" class="spread-chart-tick spread-chart-x-tick" text-anchor="middle">${midpointLabel}</text>
-      <text x="${right}" y="${height - 4}" class="spread-chart-tick spread-chart-x-tick" text-anchor="end">${endLabel}</text>
+      <line x1="6" y1="${bottom}" x2="${right}" y2="${bottom}" class="spread-chart-axis"/>
+      <text x="${left}" y="${bottom + 6}" class="spread-chart-tick spread-chart-x-tick">0</text>
+      <text x="${mapX(halfTime)}" y="${bottom + 6}" class="spread-chart-tick spread-chart-x-tick" text-anchor="middle">${midpointLabel}</text>
+      <text x="${right}" y="${bottom + 6}" class="spread-chart-tick spread-chart-x-tick" text-anchor="end">${endLabel}</text>
     </svg>
     <span class="visually-hidden">${cleanText(axisLabel)}</span>
   </div>`;
