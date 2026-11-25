@@ -145,7 +145,8 @@ h1 span { color: #848d86; }
 .section-title-group .eyebrow { margin-bottom: 4px; }
 .date-controls { display: flex; flex: none; align-items: center; justify-content: flex-end; gap: 8px; }
 .date-switch,
-.today-view-switch {
+.today-view-switch,
+.upcoming-view-switch {
   display: flex;
   padding: 4px;
   border: 1px solid var(--line);
@@ -154,7 +155,8 @@ h1 span { color: #848d86; }
 }
 
 .date-switch button,
-.today-view-switch button {
+.today-view-switch button,
+.upcoming-view-switch button {
   padding: 8px 13px;
   border: 0;
   border-radius: 7px;
@@ -164,9 +166,11 @@ h1 span { color: #848d86; }
   cursor: pointer;
 }
 
-.today-view-switch[hidden] { display: none; }
+.today-view-switch[hidden],
+.upcoming-view-switch[hidden] { display: none; }
 .date-switch button.selected,
-.today-view-switch button.selected {
+.today-view-switch button.selected,
+.upcoming-view-switch button.selected {
   background: #2b332d;
   color: #f2f5f1;
 }
@@ -302,7 +306,8 @@ h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
 .score-table th:first-child { width: 43%; padding-left: 16px; text-align: left; }
 .score-table tbody th { color: #dfe5df; font-size: 11px; font-weight: 600; }
 .score-team { display: flex; min-width: 0; align-items: center; gap: 8px; }
-.score-team > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-team > .team-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-rank { flex: none; color: var(--green); font-family: var(--mono); font-size: 10px; font-weight: 700; }
 .team-logo { width: 21px; height: 21px; flex: none; object-fit: contain; }
 .score-table tbody td { color: #aab3ac; font-family: var(--mono); font-size: 11px; }
 .score-table .score-total { width: 48px; border-left: 1px solid rgba(255,255,255,.08); color: #f2f4f2; font-weight: 600; }
@@ -496,10 +501,12 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
   .section-title-group h2 { font-size: 18px; }
   .date-controls { gap: 5px; }
   .date-controls .date-switch,
-  .date-controls .today-view-switch { padding: 3px; }
+  .date-controls .today-view-switch,
+  .date-controls .upcoming-view-switch { padding: 3px; }
   .date-switch { flex: 1; }
   .date-switch button { flex: 1; padding: 7px 8px; font-size: 10px; }
-  .today-view-switch button { padding: 7px 8px; font-size: 10px; }
+  .today-view-switch button,
+  .upcoming-view-switch button { padding: 7px 8px; font-size: 10px; }
   .refresh-button { display: none; }
   .tabs { gap: 3px; margin-right: -16px; margin-left: -4px; padding-right: 16px; }
   .tab { padding: 9px 12px; font-size: 11px; }

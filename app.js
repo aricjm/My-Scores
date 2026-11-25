@@ -141,12 +141,14 @@ const elements = {
   myTeamFilters: document.querySelector("#my-team-filters"),
   golfTourFilters: document.querySelector("#golf-tour-filters"),
   todayViewSwitch: document.querySelector("#today-view-switch"),
+  upcomingViewSwitch: document.querySelector("#upcoming-view-switch"),
 };
 
 const state = {
   tab: "My Teams",
   day: "today",
   todayView: "all",
+  upcomingView: "all",
   myTeamsLeague: "All",
   golfTour: "pga",
   refreshSequence: 0,
@@ -571,15 +573,22 @@ function getPeriodColumns(teams, sportKey) {
   });
 }
 
-function renderScoreRow(team, periodColumns, isAway, periodScoresLoading = false) {
+function getTop25Rank(team, sportKey) {
+  if (!["NCAAF", "NCAAM", "NCAAW"].includes(sportKey)) return null;
+  const rank = Number(team.curatedRank?.current ?? team.rank ?? team.team?.rank);
+  return Number.isInteger(rank) && rank >= 1 && rank <= 25 ? rank : null;
+}
+
+function renderScoreRow(team, periodColumns, isAway, sportKey, periodScoresLoading = false) {
   const name = team.team?.shortDisplayName || team.team?.displayName || "TBD";
+  const rank = getTop25Rank(team, sportKey);
   const scores = getPeriodScores(team);
   const logo = teamLogo(team);
   const logoMarkup = logo ? `<img class="team-logo" src="${cleanText(logo)}" alt="" loading="lazy">` : "";
   const periods = periodColumns.map((_, index) => `<td>${cleanText(scores.get(index + 1) ?? (periodScoresLoading ? "…" : "—"))}</td>`).join("");
   const total = formatScoreValue(team.score);
   return `<tr class="score-row ${isAway ? "away" : "home"}">
-    <th scope="row"><span class="score-team">${logoMarkup}<span>${cleanText(name)}</span></span></th>
+    <th scope="row"><span class="score-team">${logoMarkup}${rank ? `<span class="team-rank">#${rank}</span>` : ""}<span class="team-name">${cleanText(name)}</span></span></th>
     ${periods}<td class="score-total">${cleanText(total)}</td>
   </tr>`;
 }
@@ -589,7 +598,7 @@ function renderScoreTable(event, sportKey, periodScoresLoading = false) {
   const periodColumns = getPeriodColumns([away, home], sportKey);
   return `<table class="score-table" aria-label="${cleanText(`${SPORTS[sportKey].label} scoreboard`)}">
     <thead><tr><th scope="col">TEAM</th>${periodColumns.map((period) => `<th scope="col">${cleanText(period)}</th>`).join("")}<th scope="col" class="score-total">T</th></tr></thead>
-    <tbody>${renderScoreRow(away, periodColumns, true, periodScoresLoading)}${renderScoreRow(home, periodColumns, false, periodScoresLoading)}</tbody>
+    <tbody>${renderScoreRow(away, periodColumns, true, sportKey, periodScoresLoading)}${renderScoreRow(home, periodColumns, false, sportKey, periodScoresLoading)}</tbody>
   </table>`;
 }
 
@@ -1789,6 +1798,7 @@ async function loadScores() {
   elements.myTeamFilters.hidden = state.tab !== "My Teams";
   elements.golfTourFilters.hidden = state.tab !== "Golf";
   elements.todayViewSwitch.hidden = state.tab === "Golf" || state.day !== "today";
+  elements.upcomingViewSwitch.hidden = state.tab === "Golf" || state.day !== "today";
   elements.sectionKicker.textContent = formatCentralDateTime();
 
   if (state.tab === "Golf") {
@@ -1819,19 +1829,24 @@ async function loadScores() {
       if (!isAllowedTVGame(games[index].event)) games.splice(index, 1);
     }
   }
+  if (state.day === "today" && state.upcomingView === "upcoming") {
+    for (let index = games.length - 1; index >= 0; index -= 1) {
+      if (getStatus(games[index].event).isLive) games.splice(index, 1);
+    }
+  }
   const sortedGames = games.sort((left, right) => {
+    const leftFinal = Boolean(left.event.status?.type?.completed);
+    const rightFinal = Boolean(right.event.status?.type?.completed);
+    if (leftFinal !== rightFinal) return leftFinal ? 1 : -1;
     if (state.tab === "My Teams") {
       const direction = state.day === "yesterday" ? -1 : 1;
       return direction * (new Date(left.event.date) - new Date(right.event.date));
     }
     if (state.tab === "NFL") {
-      const leftFinal = Boolean(left.event.status?.type?.completed);
-      const rightFinal = Boolean(right.event.status?.type?.completed);
-      if (leftFinal !== rightFinal) return leftFinal ? 1 : -1;
-    } else {
-      const liveDifference = Number(getStatus(right.event).isLive) - Number(getStatus(left.event).isLive);
-      if (liveDifference) return liveDifference;
+      return new Date(left.event.date) - new Date(right.event.date);
     }
+    const liveDifference = Number(getStatus(right.event).isLive) - Number(getStatus(left.event).isLive);
+    if (liveDifference) return liveDifference;
     return new Date(left.event.date) - new Date(right.event.date);
   });
   elements.gameCount.textContent = `${sortedGames.length} ${sortedGames.length === 1 ? "GAME" : "GAMES"}`;
@@ -3776,6 +3791,18 @@ document.querySelectorAll(".today-view-switch button").forEach((button) => {
   button.addEventListener("click", () => {
     state.todayView = button.dataset.todayView;
     document.querySelectorAll(".today-view-switch button").forEach((viewButton) => {
+      const selected = viewButton === button;
+      viewButton.classList.toggle("selected", selected);
+      viewButton.setAttribute("aria-pressed", String(selected));
+    });
+    loadScores();
+  });
+});
+
+document.querySelectorAll(".upcoming-view-switch button").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.upcomingView = button.dataset.upcomingView;
+    document.querySelectorAll(".upcoming-view-switch button").forEach((viewButton) => {
       const selected = viewButton === button;
       viewButton.classList.toggle("selected", selected);
       viewButton.setAttribute("aria-pressed", String(selected));
