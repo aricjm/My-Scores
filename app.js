@@ -144,6 +144,41 @@ const elements = {
   upcomingViewSwitch: document.querySelector("#upcoming-view-switch"),
 };
 
+function setupMobileNavigationAccordion() {
+  const accordion = document.querySelector("#mobile-navigation-accordion");
+  const content = document.querySelector("#mobile-navigation-accordion-content");
+  const toggle = document.querySelector("#mobile-navigation-accordion-toggle");
+  const mobileQuery = window.matchMedia("(max-width: 620px)");
+  const movable = [".date-controls", ".tabs", "#my-team-filters", "#golf-tour-filters"].map((selector) => {
+    const node = document.querySelector(selector);
+    const placeholder = document.createComment(`accordion placeholder for ${selector}`);
+    node.before(placeholder);
+    return { node, placeholder };
+  });
+
+  const syncLayout = () => {
+    if (mobileQuery.matches) {
+      movable.forEach(({ node }) => content.append(node));
+      accordion.hidden = false;
+    } else {
+      movable.forEach(({ node, placeholder }) => placeholder.replaceWith(node));
+      accordion.hidden = true;
+      content.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+    }
+  };
+
+  toggle.addEventListener("click", () => {
+    const expanded = toggle.getAttribute("aria-expanded") !== "true";
+    toggle.setAttribute("aria-expanded", String(expanded));
+    content.hidden = !expanded;
+  });
+  mobileQuery.addEventListener("change", syncLayout);
+  syncLayout();
+}
+
+setupMobileNavigationAccordion();
+
 const state = {
   tab: "My Teams",
   day: "today",

@@ -485,10 +485,24 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
 .pull-indicator.visible { opacity: 1; transform: translate(-50%, 0); }
 .pull-indicator .loader { width: 13px; height: 13px; }
 
+.mobile-navigation-accordion { display: none; }
+.mobile-navigation-accordion[hidden] { display: none; }
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes live-light-pulse { 50% { opacity: .48; box-shadow: 0 0 2px rgba(255,77,72,.45); } }
 
 @media (max-width: 620px) {
+  .mobile-navigation-accordion { display: block; margin: -4px 0 13px; border: 1px solid var(--line); border-radius: 9px; background: #151916; }
+  .mobile-navigation-accordion-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 10px 12px; border: 0; background: transparent; color: #c5cec6; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; }
+  .mobile-navigation-accordion-toggle[aria-expanded="true"] { border-bottom: 1px solid var(--line); }
+  .accordion-chevron { color: var(--green); font-size: 17px; line-height: 1; transition: transform .2s ease; }
+  .mobile-navigation-accordion-toggle[aria-expanded="true"] .accordion-chevron { transform: rotate(180deg); }
+  .mobile-navigation-accordion-content { padding: 11px 12px 13px; }
+  .mobile-navigation-accordion-content[hidden] { display: none; }
+  .mobile-navigation-accordion-content .date-controls { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 6px; margin-bottom: 13px; }
+  .mobile-navigation-accordion-content .date-controls .date-switch { flex: none; }
+  .mobile-navigation-accordion-content .tabs { flex-wrap: wrap; overflow: visible; margin: 0 0 10px; padding: 0 0 12px; }
+  .mobile-navigation-accordion-content .my-team-filters { flex-wrap: wrap; overflow: visible; margin: 0 0 8px; }
   .app-shell { padding: 0 16px; }
   .topbar { height: 60px; }
   .live-key { font-size: 9px; }
