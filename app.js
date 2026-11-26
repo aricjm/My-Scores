@@ -227,6 +227,58 @@ function getGamePicks(card) {
   return state.picks[key];
 }
 
+function syncSavedPickGame(card, picks) {
+  const hasPicks = picks.players.length > 0 || picks.markets.length > 0;
+  if (!hasPicks) return false;
+  const metadata = {
+    sportKey: card.dataset.sport,
+    eventId: card.dataset.eventId,
+    eventDate: card.dataset.eventDate,
+    homeId: card.dataset.homeId,
+    homeName: card.dataset.homeName,
+    awayId: card.dataset.awayId,
+    awayName: card.dataset.awayName,
+  };
+  let changed = false;
+  for (const [key, value] of Object.entries(metadata)) {
+    if (picks[key] !== value) {
+      picks[key] = value;
+      changed = true;
+    }
+  }
+  if (card.dataset.completed !== "true") return changed;
+
+  const homeScore = readScoreFromCard(card, "home");
+  const awayScore = readScoreFromCard(card, "away");
+  const playerResults = Object.fromEntries(picks.players.map((pick) => [
+    pick.id,
+    getPlayerCurrentValue(card.latestSummary, pick),
+  ]).filter(([, value]) => value != null));
+  const marketResults = Object.fromEntries(picks.markets.map((pick) => {
+    if (pick.type === "spread") {
+      const selectedHome = String(pick.teamId) === card.dataset.homeId;
+      const selected = selectedHome ? homeScore : awayScore;
+      const opponent = selectedHome ? awayScore : homeScore;
+      return [pick.type, selected == null || opponent == null ? null : {
+        selectedScore: selected,
+        opponentScore: opponent,
+        line: pick.line,
+      }];
+    }
+    return [pick.type, homeScore == null || awayScore == null ? null : {
+      total: homeScore + awayScore,
+      direction: pick.direction,
+      line: pick.line,
+    }];
+  }).filter(([, value]) => value != null));
+  const result = { completed: true, homeScore, awayScore, playerResults, marketResults };
+  if (JSON.stringify(picks.result) !== JSON.stringify(result)) {
+    picks.result = result;
+    changed = true;
+  }
+  return changed;
+}
+
 function persistAndRenderPicks(card) {
   savePicks();
   renderMyPicks(card);
@@ -650,7 +702,7 @@ function renderEvent(event, sportKey, oddsLoading = false, oddsOverride, periodS
   const competitionStatus = getCompetition(event).status ?? {};
   const eventStatus = event.status ?? {};
   const showStats = sportKey !== "Golf";
-  return `<article class="game-card" data-event-id="${cleanText(event.id)}" data-sport="${cleanText(sportKey)}" data-upcoming="${isUpcoming}" data-event-start="${eventTime}" data-season="${season}" data-completed="${status.completed}" data-live="${status.isLive}" data-game-period="${cleanText(competitionStatus.period ?? eventStatus.period ?? "")}" data-game-clock="${cleanText(competitionStatus.displayClock ?? eventStatus.displayClock ?? "")}" data-home-id="${cleanText(lines.homeId)}" data-home-name="${cleanText(lines.homeName)}" data-away-id="${cleanText(lines.awayId)}" data-away-name="${cleanText(lines.awayName)}" data-home-spread="${cleanText(lines.homeSpread)}" data-away-spread="${cleanText(lines.awaySpread)}" data-total="${cleanText(lines.total)}">
+  return `<article class="game-card" data-event-id="${cleanText(event.id)}" data-event-date="${eventDateKey}" data-sport="${cleanText(sportKey)}" data-upcoming="${isUpcoming}" data-event-start="${eventTime}" data-season="${season}" data-completed="${status.completed}" data-live="${status.isLive}" data-game-period="${cleanText(competitionStatus.period ?? eventStatus.period ?? "")}" data-game-clock="${cleanText(competitionStatus.displayClock ?? eventStatus.displayClock ?? "")}" data-home-id="${cleanText(lines.homeId)}" data-home-name="${cleanText(lines.homeName)}" data-away-id="${cleanText(lines.awayId)}" data-away-name="${cleanText(lines.awayName)}" data-home-spread="${cleanText(lines.homeSpread)}" data-away-spread="${cleanText(lines.awaySpread)}" data-total="${cleanText(lines.total)}">
     <div class="game-topline">
       <div class="game-schedule">
         ${status.isLive
@@ -1708,6 +1760,30 @@ async function fetchMyTeamResults(sportKey, seasonDate) {
     .map((event) => ({ event, sportKey }));
 }
 
+async function fetchPickedGames(selectedTabs, daySelection, fromDate) {
+  const groups = new Map();
+  for (const [key, picks] of Object.entries(state.picks)) {
+    if (!picks?.players?.length && !picks?.markets?.length) continue;
+    const [keySport, keyEventId] = key.split(":");
+    const sportKey = picks.sportKey || keySport;
+    const eventId = picks.eventId || keyEventId;
+    const eventDate = picks.eventDate;
+    if (!SPORTS[sportKey] || !selectedTabs.includes(sportKey) || !eventId || !/^\d{8}$/.test(eventDate ?? "")) continue;
+    if (daySelection === "today" ? eventDate < fromDate : eventDate > getCentralDate()) continue;
+    const groupKey = `${sportKey}:${eventDate}`;
+    if (!groups.has(groupKey)) groups.set(groupKey, { sportKey, eventDate, eventIds: new Set() });
+    groups.get(groupKey).eventIds.add(String(eventId));
+  }
+  const results = await Promise.allSettled([...groups.values()].map(async ({ sportKey, eventDate, eventIds }) => {
+    const data = await fetchScoreboard(sportKey, eventDate);
+    return (data.events ?? [])
+      .filter((event) => eventIds.has(String(event.id)))
+      .filter((event) => daySelection === "today" || getStatus(event).completed)
+      .map((event) => ({ event, sportKey }));
+  }));
+  return results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+}
+
 function renderGamesByDay(games) {
   const groups = new Map();
   for (const game of games) {
@@ -1866,6 +1942,12 @@ async function loadScores() {
     if (result.status === "fulfilled") games.push(...result.value);
     else errors.push(`${SPORTS[selectedTabs[index]].label}: ${result.reason.message}`);
   });
+  if (state.tab === "My Teams") {
+    const pickedGames = await fetchPickedGames(selectedTabs, state.day, date);
+    if (sequence !== state.refreshSequence) return;
+    const existingGames = new Set(games.map(({ sportKey, event }) => `${sportKey}:${event.id}`));
+    games.push(...pickedGames.filter(({ sportKey, event }) => !existingGames.has(`${sportKey}:${event.id}`)));
+  }
   if (state.day === "today" && state.todayView === "tv") {
     for (let index = games.length - 1; index >= 0; index -= 1) {
       if (!isAllowedTVGame(games[index].event)) games.splice(index, 1);
@@ -2690,6 +2772,7 @@ function renderMyPicks(card) {
   const container = card.querySelector(".my-picks-content");
   if (!section || !container) return;
   const picks = getGamePicks(card);
+  if (syncSavedPickGame(card, picks)) savePicks();
   const hasSpread = picks.markets.some((pick) => pick.type === "spread");
   const hasTotal = picks.markets.some((pick) => pick.type === "total");
   card.querySelector('[data-pick-action="add-spread"]')?.toggleAttribute("disabled", hasSpread);
