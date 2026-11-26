@@ -144,6 +144,86 @@ const elements = {
   upcomingViewSwitch: document.querySelector("#upcoming-view-switch"),
 };
 
+function setupMobileFilterDrawer() {
+  const drawer = document.querySelector("#mobile-filter-drawer");
+  const drawerContent = document.querySelector("#mobile-filter-drawer-content");
+  const handle = document.querySelector("#mobile-filter-drawer-handle");
+  const mobileQuery = window.matchMedia("(max-width: 620px)");
+  const movableSelectors = [".date-controls", ".tabs", "#my-team-filters", "#golf-tour-filters"];
+  const movable = movableSelectors.map((selector) => {
+    const node = document.querySelector(selector);
+    const placeholder = document.createComment(`mobile drawer placeholder for ${selector}`);
+    node.before(placeholder);
+    return { node, placeholder };
+  });
+  let pointerStart = null;
+  let dragOffset = 0;
+  let didDrag = false;
+
+  const setOpen = (open) => {
+    drawer.classList.toggle("is-open", open);
+    drawer.classList.remove("is-dragging");
+    drawer.style.transform = "";
+    drawer.setAttribute("aria-hidden", String(!open));
+    handle.setAttribute("aria-expanded", String(open));
+    handle.setAttribute("aria-label", open ? "Close navigation and filters" : "Open navigation and filters");
+  };
+  const syncLayout = () => {
+    if (mobileQuery.matches) {
+      movable.forEach(({ node }) => drawerContent.append(node));
+    } else {
+      movable.forEach(({ node, placeholder }) => placeholder.replaceWith(node));
+      setOpen(false);
+    }
+  };
+  const beginDrag = (event) => {
+    if (!mobileQuery.matches || event.button !== 0) return;
+    const rect = drawer.getBoundingClientRect();
+    const isHandle = event.target.closest("#mobile-filter-drawer-handle");
+    const isLeftEdge = !drawer.classList.contains("is-open") && event.clientX <= 24;
+    const isOpenHandle = drawer.classList.contains("is-open") && isHandle;
+    if (!isHandle && !isLeftEdge && !isOpenHandle) return;
+    pointerStart = { id: event.pointerId, x: event.clientX, drawerX: rect.left };
+    dragOffset = Math.max(0, Math.min(rect.width, rect.left + rect.width));
+    didDrag = false;
+    drawer.classList.add("is-dragging");
+    if (isHandle) event.preventDefault();
+  };
+  const moveDrag = (event) => {
+    if (!pointerStart || pointerStart.id !== event.pointerId) return;
+    const width = drawer.getBoundingClientRect().width;
+    const closedOffset = Math.min(width, 34);
+    const openOffset = drawer.classList.contains("is-open") ? width : closedOffset;
+    const offset = Math.max(0, Math.min(width, openOffset + event.clientX - pointerStart.x));
+    dragOffset = offset;
+    if (Math.abs(event.clientX - pointerStart.x) > 6) didDrag = true;
+    drawer.style.transform = `translateX(${offset - width}px)`;
+    if (Math.abs(event.clientX - pointerStart.x) > 6) event.preventDefault();
+  };
+  const endDrag = (event) => {
+    if (!pointerStart || pointerStart.id !== event.pointerId) return;
+    const width = drawer.getBoundingClientRect().width;
+    pointerStart = null;
+    setOpen(dragOffset >= width / 2);
+  };
+
+  document.addEventListener("pointerdown", beginDrag);
+  document.addEventListener("pointermove", moveDrag, { passive: false });
+  document.addEventListener("pointerup", endDrag);
+  document.addEventListener("pointercancel", endDrag);
+  handle.addEventListener("click", () => {
+    if (didDrag) {
+      didDrag = false;
+      return;
+    }
+    setOpen(!drawer.classList.contains("is-open"));
+  });
+  mobileQuery.addEventListener("change", syncLayout);
+  syncLayout();
+}
+
+setupMobileFilterDrawer();
+
 const state = {
   tab: "My Teams",
   day: "today",

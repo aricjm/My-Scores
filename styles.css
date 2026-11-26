@@ -485,10 +485,24 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
 .pull-indicator.visible { opacity: 1; transform: translate(-50%, 0); }
 .pull-indicator .loader { width: 13px; height: 13px; }
 
+.mobile-filter-drawer { display: none; }
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes live-light-pulse { 50% { opacity: .48; box-shadow: 0 0 2px rgba(255,77,72,.45); } }
 
 @media (max-width: 620px) {
+  .mobile-filter-drawer { position: fixed; z-index: 20; top: 0; bottom: 0; left: 0; display: block; width: 100vw; padding: 14px 48px 20px 16px; overflow-y: auto; border-right: 1px solid var(--line); background: #101411; box-shadow: 12px 0 28px rgba(0,0,0,.38); transform: translateX(calc(-100% + 34px)); transition: transform .32s cubic-bezier(.22,.8,.25,1); touch-action: pan-y; }
+  .mobile-filter-drawer.is-open { transform: translateX(0); }
+  .mobile-filter-drawer.is-dragging { transition: none; }
+  .mobile-filter-drawer-content { width: 100%; }
+  .mobile-filter-drawer .date-controls { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 7px; margin: 0 0 18px; }
+  .mobile-filter-drawer .date-controls .date-switch { flex: none; }
+  .mobile-filter-drawer .tabs { flex-wrap: wrap; overflow: visible; margin: 0 0 12px; padding: 0 0 14px; }
+  .mobile-filter-drawer .my-team-filters { flex-wrap: wrap; overflow: visible; margin: 0 0 14px; }
+  .mobile-filter-drawer-handle { position: absolute; top: 84px; right: 0; display: grid; width: 34px; height: 72px; place-items: center; padding: 0; border: 1px solid #3a4933; border-right: 0; border-radius: 10px 0 0 10px; background: #202820; color: var(--green); font-size: 27px; line-height: 1; cursor: grab; touch-action: none; }
+  .mobile-filter-drawer.is-open .mobile-filter-drawer-handle { cursor: grab; }
+  .mobile-filter-drawer-handle span { transition: transform .2s ease; }
+  .mobile-filter-drawer.is-open .mobile-filter-drawer-handle span { transform: rotate(180deg); }
   .app-shell { padding: 0 16px; }
   .topbar { height: 60px; }
   .live-key { font-size: 9px; }
