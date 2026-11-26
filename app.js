@@ -664,8 +664,8 @@ function renderEvent(event, sportKey, oddsLoading = false, oddsOverride, periodS
       ${renderScoreTable(event, sportKey, periodScoresLoading)}
     </div>
     ${state.day === "today" ? `<div class="betting-lines">
-      <span class="meta-item"><span class="meta-label">Spread</span><span class="meta-value" data-odds-field="spread">${cleanText(odds.spread || (oddsLoading ? "Loading…" : "Not available"))}</span></span>
-      <span class="meta-item"><span class="meta-label">O/U</span><span class="meta-value" data-odds-field="total">${cleanText(odds.total || (oddsLoading ? "Loading…" : "Not available"))}</span></span>
+      <span class="meta-item" data-odds-item="spread"${!odds.spread && !oddsLoading ? " hidden" : ""}><span class="meta-label">Spread</span><span class="meta-value" data-odds-field="spread">${cleanText(odds.spread || (oddsLoading ? "Loading…" : "Not available"))}</span></span>
+      <span class="meta-item" data-odds-item="total"${!odds.total && !oddsLoading ? " hidden" : ""}><span class="meta-label">O/U</span><span class="meta-value" data-odds-field="total">${cleanText(odds.total || (oddsLoading ? "Loading…" : "Not available"))}</span></span>
       <div class="my-pick-actions">
         <button type="button" class="my-pick-add" data-pick-action="add-spread">+ Spread</button>
         <button type="button" class="my-pick-add" data-pick-action="add-total">+ O/U</button>
@@ -1616,8 +1616,14 @@ function updateOddsInCard(game) {
   const odds = getOdds(game.event, game.oddsOverride);
   const spread = card.querySelector('[data-odds-field="spread"]');
   const total = card.querySelector('[data-odds-field="total"]');
-  if (spread) spread.textContent = odds.spread || "Not available";
-  if (total) total.textContent = odds.total || "Not available";
+  if (spread) {
+    spread.textContent = odds.spread || "Not available";
+    spread.closest("[data-odds-item]").hidden = !odds.spread;
+  }
+  if (total) {
+    total.textContent = odds.total || "Not available";
+    total.closest("[data-odds-item]").hidden = !odds.total;
+  }
   updateCardBettingData(card, game.event, game.oddsOverride);
   const picks = getGamePicks(card);
   const spreadPick = picks.markets.find((pick) => pick.type === "spread");
@@ -1659,6 +1665,7 @@ async function loadMyTeamOdds(games) {
           for (const field of card?.querySelectorAll("[data-odds-field]") ?? []) {
             field.textContent = "Could not load";
             field.title = result.reason.message;
+            field.closest("[data-odds-item]").hidden = false;
           }
         }
       }
@@ -2649,7 +2656,7 @@ function renderMarketPickRow(card, pick) {
   const details = getMarketPickProgress(card, pick);
   return `<tr>
     <th scope="row"><span class="pick-player-heading">O/U<span class="pick-row-actions">${lockButton}<button type="button" class="pick-remove" data-pick-action="remove-market" data-market-type="total" aria-label="Remove over/under from My Picks">×</button></span></span></th>
-    <td>Total</td>
+    <td class="total-pick-type">Total</td>
     <td><select data-pick-field="total-direction" aria-label="Over or under"><option value="over"${pick.direction !== "under" ? " selected" : ""}>Over</option><option value="under"${pick.direction === "under" ? " selected" : ""}>Under</option></select></td>
     <td><input type="number" min="0" step="0.5" inputmode="decimal" value="${cleanText(pick.line ?? "")}" data-pick-field="total-line" aria-label="Total points line"></td>
     <td>${details.current}</td>

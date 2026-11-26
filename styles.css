@@ -421,6 +421,7 @@ h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
 .pick-remove { margin-right: 5px; padding: 0 3px; border: 0; background: transparent; color: #879188; font-size: 15px; line-height: 1; cursor: pointer; }
 .pick-remove:hover { color: #ff8e88; }
 .betting-lines { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 39px; padding: 7px 16px; border-top: 1px solid rgba(255,255,255,.07); }
+.meta-item[hidden] { display: none; }
 .betting-lines .my-pick-actions { margin-left: auto; }
 .meta-item { display: inline-flex; align-items: center; gap: 6px; }
 .meta-label { color: #727d75; font-family: var(--mono); font-size: 9px; letter-spacing: .45px; text-transform: uppercase; }
@@ -526,6 +527,31 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
   .tab { padding: 9px 12px; font-size: 11px; }
   .my-team-filters { margin-top: 11px; }
   .league-filter, .golf-tour-filter { padding: 7px 10px; }
+  .my-picks { min-width: 0; padding-right: 10px; padding-left: 10px; }
+  .my-picks-content, .my-picks-table-wrap, .spread-pick-cards, .spread-pick-card { min-width: 0; max-width: 100%; }
+  .my-picks-table-wrap { overflow: visible; }
+  .my-picks-table:not(.golf-my-picks-table) { display: block; width: 100%; min-width: 0; table-layout: auto; }
+  .my-picks-table:not(.golf-my-picks-table) thead { display: none; }
+  .my-picks-table:not(.golf-my-picks-table) tbody { display: grid; gap: 8px; }
+  .my-picks-table:not(.golf-my-picks-table) tbody tr { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px; border: 1px solid rgba(255,255,255,.07); border-radius: 7px; background: rgba(8,11,9,.16); }
+  .my-picks-table:not(.golf-my-picks-table) tbody th,
+  .my-picks-table:not(.golf-my-picks-table) tbody td { display: block; width: auto; min-width: 0; padding: 5px 4px; border: 0; text-align: left; white-space: normal; }
+  .my-picks-table:not(.golf-my-picks-table) tbody th { grid-column: 1 / -1; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .my-picks-table:not(.golf-my-picks-table) tbody td::before { display: block; margin-bottom: 4px; color: #7f8a81; font-family: var(--mono); font-size: 8px; letter-spacing: .4px; }
+  .my-picks-table:not(.golf-my-picks-table) tbody td:nth-child(2)::before { content: "BET"; }
+  .my-picks-table:not(.golf-my-picks-table) tbody td.total-pick-type::before { content: "TYPE"; }
+  .my-picks-table:not(.golf-my-picks-table) tbody td:nth-child(3)::before { content: "SIDE"; }
+  .my-picks-table:not(.golf-my-picks-table) tbody td:nth-child(4)::before { content: "LINE"; }
+  .my-picks-table:not(.golf-my-picks-table) tbody td:nth-child(5)::before { content: "NOW"; }
+  .my-picks-table:not(.golf-my-picks-table) tbody td:nth-child(6) { grid-column: 1 / -1; }
+  .my-picks-table:not(.golf-my-picks-table) tbody td:nth-child(6)::before { content: "PROGRESS"; }
+  .my-picks-table:not(.golf-my-picks-table) select,
+  .my-picks-table:not(.golf-my-picks-table) input { width: 100%; min-width: 0; }
+  .spread-pick-card-controls { flex-wrap: wrap; gap: 8px; }
+  .spread-pick-card-controls label { min-width: 0; }
+  .spread-pick-card-controls select { width: min(42vw, 190px); }
+  .spread-pick-card-controls input { width: 68px; }
+  .spread-pick-current { min-width: 30px; margin-left: auto; }
   .scoreboard { padding-top: 0; }
   .section-heading { margin-bottom: 12px; }
   .section-heading.non-my-teams { margin-top: 8px; }
