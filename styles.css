@@ -496,10 +496,10 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
   main { padding-top: 16px; }
   .page-heading { align-items: flex-start; flex-direction: column; gap: 17px; margin-bottom: 23px; }
   h1 { font-size: 32px; }
-  .scoreboard-toolbar { gap: 8px; margin-bottom: 14px; }
+  .scoreboard-toolbar { align-items: stretch; flex-direction: column; gap: 10px; margin-bottom: 14px; }
   .section-title-group .eyebrow { font-size: 8px; letter-spacing: 1px; }
   .section-title-group h2 { font-size: 18px; }
-  .date-controls { gap: 5px; }
+  .date-controls { width: 100%; justify-content: space-between; gap: 5px; }
   .date-controls .date-switch,
   .date-controls .today-view-switch,
   .date-controls .upcoming-view-switch { padding: 3px; }
