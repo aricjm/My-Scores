@@ -456,6 +456,7 @@ h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
 .player-pick-cell { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
 .player-star-button { flex: none; padding: 1px 3px; border: 0; background: transparent; color: #79857b; font-size: 16px; line-height: 1; cursor: pointer; }
 .player-star-button:hover, .player-star-button.is-picked { color: var(--green); }
+.player-star-button.is-picked::after { content: "+"; margin-left: 1px; font-size: 10px; vertical-align: top; }
 .basketball-stats-table .stats-group-heading th { padding-top: 11px; border-top: 1px solid rgba(255,255,255,.08); }
 .basketball-stats-table .stats-team-total th, .basketball-stats-table .stats-team-total td { border-top: 1px solid rgba(182,243,106,.22); border-bottom: 0; color: var(--green); font-weight: 700; }
 .basketball-stats-table .stats-empty-cell { color: var(--muted); text-align: left; }
